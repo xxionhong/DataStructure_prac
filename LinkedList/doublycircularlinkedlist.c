@@ -148,7 +148,7 @@ DCNode *freeallDCNode(DCNode *start)
     return NULL;
 }
 
-
+/*
 int main(int argc, char const *argv[])
 {
     DCNode *first = NULL, *second = NULL;
@@ -177,3 +177,4 @@ int main(int argc, char const *argv[])
     printfallDCNodes(first);
     return 0;
 }
+*/

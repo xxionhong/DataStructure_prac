@@ -2,73 +2,104 @@
 #include "singlylinkedlist.c"
 #include "doublylinkedlist.c"
 #include "circularlinkedlist.c"
+#include "doublycircularlinkedlist.c"
 
 int main(int argc, char const *argv[])
 {
     printf("*---------------------*\n");
     printf("Singly Linkedlist Demo:\n");
-    Node *head = NULL;
-    appendNode(&head, 1);
-    appendNode(&head, 2);
-    appendNode(&head, 3);
-    insertNode(head, 2, 4);
-    insertNode(head, 4, 5);
-    pushNode(&head, 0);
-    pushNode(&head, -1);
-    printfallNodes(head);
-    deleteNode(&head, 2);
-    deleteNode(&head, 1);
-    printfallNodes(head);
-    freeallNodes(head);
+
+    Node *singly = NULL;
+    appendNode(&singly, 1);
+    appendNode(&singly, 2);
+    appendNode(&singly, 3);
+    insertNode(singly, 2, 4);
+    insertNode(singly, 4, 5);
+    pushNode(&singly, 0);
+    pushNode(&singly, -1);
+    printfallNodes(singly);
+    S_bubblesorted(singly);
+    printfallNodes(singly);
+    deleteNode(&singly, 2);
+    deleteNode(&singly, -1);
+    printfallNodes(singly);
+    singly = freeallNodes(singly);
+    printfallNodes(singly);
 
     printf("*---------------------*\n");
     printf("Doubly Linkedlist Demo:\n");
-    DNode *first = NULL;
-    appendDNode(&first, 1);
-    appendDNode(&first, 2);
-    appendDNode(&first, 3);
-    pushDNode(&first, 0);
-    pushDNode(&first, -1);
-    insertDNode(first, 2, 4);
-    insertDNode(first, 4, 6);
-    printfallDNodes(first);
-    deleteDNode(&first, 6);
-    deleteDNode(&first, 2);
-    printfallDNodes(first);
-    DNode *last = first;
+
+    DNode *doubly = NULL;
+    appendDNode(&doubly, 1);
+    appendDNode(&doubly, 2);
+    appendDNode(&doubly, 3);
+    pushDNode(&doubly, 0);
+    pushDNode(&doubly, -1);
+    insertDNode(doubly, 2, 4);
+    insertDNode(doubly, 4, 6);
+    printfallDNodes(doubly);
+    D_bubblesorted(doubly);
+    printfallDNodes(doubly);
+    deleteDNode(&doubly, 6);
+    deleteDNode(&doubly, 2);
+    printfallDNodes(doubly);
+    DNode *last = doubly;
     while (last->next != NULL)
     {
         last = last->next;
     }
     printf("inverse print: \n");
     inverse_printfallDNodes(last);
-    freeallDNodes(first);
+    doubly = freeallDNodes(doubly);
+    printfallDNodes(doubly);
 
     printf("*---------------------*\n");
     printf("Circular Linkedlist Demo:\n");
-    CNode *second = NULL;
-    appendCNode(&second, 6);
-    appendCNode(&second, 4);
-    appendCNode(&second, 5);
-    appendCNode(&second, 7);
-    appendCNode(&second, 8);
-    printfallCNode(second);
-    insertCNode(second, 4, 66);
-    insertCNode(second, 7, 9);
-    insertCNode(second, 6, 10);
-    insertCNode(second, 8, 11);
-    printfallCNode(second);
-    deleteCNode(&second, 8);
-    printfallCNode(second);
-    deleteCNode(&second, 4);
-    printfallCNode(second);
-    deleteCNode(&second, 6);
-    printfallCNode(second);
-    pushCNode(&second, 1);
-    pushCNode(&second, 0);
-    printfallCNode(second);
-    freeallCNodes(second);
+
+    CNode *circular = NULL;
+    appendCNode(&circular, 6);
+    appendCNode(&circular, 4);
+    appendCNode(&circular, 5);
+    appendCNode(&circular, 7);
+    appendCNode(&circular, 8);
+    printfallCNode(circular);
+    insertCNode(circular, 4, 66);
+    insertCNode(circular, 7, 9);
+    insertCNode(circular, 6, 10);
+    insertCNode(circular, 8, 11);
+    printfallCNode(circular);
+    deleteCNode(&circular, 8);
+    printfallCNode(circular);
+    deleteCNode(&circular, 4);
+    printfallCNode(circular);
+    deleteCNode(&circular, 6);
+    printfallCNode(circular);
+    pushCNode(&circular, 1);
+    pushCNode(&circular, 0);
+    printfallCNode(circular);
+    circular = freeallCNodes(circular);
+    printfallCNode(circular);
 
     printf("*---------------------*\n");
+    printf("Doubly Circular Linkedlist Demo:\n");
+
+    DCNode *doublecircular = NULL;
+    appnedDCNode(&doublecircular, 3);
+    appnedDCNode(&doublecircular, 5);
+    printfallDCNodes(doublecircular);
+    pushDCNode(&doublecircular, 4);
+    pushDCNode(&doublecircular, 7);
+    printfallDCNodes(doublecircular);
+    insertDCNode(&doublecircular, 4, 6);
+    insertDCNode(&doublecircular, 3, 8);
+    printfallDCNodes(doublecircular);
+    deleteDCNode(&doublecircular, 6);
+    deleteDCNode(&doublecircular, 7);
+    printfallDCNodes(doublecircular);
+    doublecircular = freeallDCNode(doublecircular);
+    printfallDCNodes(doublecircular);
+
+    printf("*---------------------*\n");
+
     return 0;
 }

@@ -140,14 +140,14 @@ void deleteDNode(DNode **start, int value)
     }
 }
 
-void swap(DNode *left, DNode *right)
+void D_swap(DNode *left, DNode *right)
 {
     left->data = left->data + right->data;
     right->data = left->data - right->data;
     left->data = left->data - right->data;
 }
 
-void bubblesorted(DNode *start)
+void D_bubblesorted(DNode *start)
 {
     int s;
     DNode *current, *l_current = NULL;
@@ -164,7 +164,7 @@ void bubblesorted(DNode *start)
         {
             if (current->data > current->next->data)
             {
-                swap(current, current->next);
+                D_swap(current, current->next);
                 s = 1;
             }
             current = current->next;
@@ -173,7 +173,7 @@ void bubblesorted(DNode *start)
 
     } while (s);
 }
-
+/*
 int main(int argc, char const *argv[])
 {
     DNode *first = NULL;
@@ -186,7 +186,7 @@ int main(int argc, char const *argv[])
     insertDNode(first, 2, 4);
     insertDNode(first, 4, 6);
     printfallDNodes(first);
-    bubblesorted(first);
+    D_bubblesorted(first);
     printfallDNodes(first);
     deleteDNode(&first, 6);
     deleteDNode(&first, 2);
@@ -201,3 +201,4 @@ int main(int argc, char const *argv[])
     printfallDNodes(first);
     return 0;
 }
+*/

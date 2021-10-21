@@ -10,6 +10,11 @@ typedef struct node
 
 void printfallNodes(Node *node)
 {
+    if (node == NULL)
+    {
+        printf("This linked list is empty!\n");
+        return;
+    }
     while (node != NULL)
     {
         printf("%d, ", node->data);
@@ -41,7 +46,7 @@ void appendNode(Node **start, int value)
     }
 }
 
-void freeallNodes(Node *start)
+Node *freeallNodes(Node *start)
 {
     Node *current, *temp;
     current = start;
@@ -51,6 +56,7 @@ void freeallNodes(Node *start)
         current = current->next;
         free(temp);
     }
+    return NULL;
 }
 
 void insertNode(Node *start, int value_after, int value)
@@ -121,14 +127,14 @@ void deleteNode(Node **start, int value)
         current = current->next;
     }
 }
-void swap(Node *left, Node *right)
+void S_swap(Node *left, Node *right)
 {
     left->data = left->data + right->data;
     right->data = left->data - right->data;
     left->data = left->data - right->data;
 }
 
-void bubblesorted(Node *start)
+void S_bubblesorted(Node *start)
 {
     int s;
     Node *current, *l_current = NULL;
@@ -145,7 +151,7 @@ void bubblesorted(Node *start)
         {
             if (current->data > current->next->data)
             {
-                swap(current, current->next);
+                S_swap(current, current->next);
                 s = 1;
             }
             current = current->next;
@@ -154,7 +160,7 @@ void bubblesorted(Node *start)
 
     } while (s);
 }
-
+/*
 int main(int argc, char const *argv[])
 {
     Node *first = NULL;
@@ -166,11 +172,13 @@ int main(int argc, char const *argv[])
     pushNode(&first, 0);
     pushNode(&first, -1);
     printfallNodes(first);
-    bubblesorted(first);
+    S_bubblesorted(first);
     printfallNodes(first);
     deleteNode(&first, 2);
     deleteNode(&first, -1);
     printfallNodes(first);
-    freeallNodes(first);
+    first = freeallNodes(first);
+    printfallNodes(first);
     return 0;
 }
+*/

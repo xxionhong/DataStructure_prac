@@ -124,7 +124,7 @@ void pushCNode(CNode **start, int value)
     current->next = newnode;
     (*start) = newnode;
 }
-
+/*
 int main(int argc, char const *argv[])
 {
     CNode *first = NULL;
@@ -152,3 +152,4 @@ int main(int argc, char const *argv[])
     printfallCNode(first);
     return 0;
 }
+*/
