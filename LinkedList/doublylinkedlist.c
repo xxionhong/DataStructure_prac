@@ -71,16 +71,16 @@ void pushDNode(DNode **start, int value)
     *start = newnode;
 }
 
-void freeallDNodes(DNode *start)
+DNode *freeallDNodes(DNode *start)
 {
-    DNode *current, *temp;
-    current = start;
+    DNode *current = start, *temp = NULL;
     while (current != NULL)
     {
         temp = current;
         current = current->next;
         free(temp);
     }
+    return NULL;
 }
 
 void insertDNode(DNode *start, int after_value, int value)
@@ -139,7 +139,41 @@ void deleteDNode(DNode **start, int value)
         current = current->next;
     }
 }
-/*
+
+void swap(DNode *left, DNode *right)
+{
+    left->data = left->data + right->data;
+    right->data = left->data - right->data;
+    left->data = left->data - right->data;
+}
+
+void bubblesorted(DNode *start)
+{
+    int s;
+    DNode *current, *l_current = NULL;
+    if (start == NULL)
+    {
+        printf("This Linked list is empty!\n");
+        return;
+    }
+    do
+    {
+        s = 0;
+        current = start;
+        while (current->next != l_current)
+        {
+            if (current->data > current->next->data)
+            {
+                swap(current, current->next);
+                s = 1;
+            }
+            current = current->next;
+        }
+        l_current = current;
+
+    } while (s);
+}
+
 int main(int argc, char const *argv[])
 {
     DNode *first = NULL;
@@ -152,17 +186,18 @@ int main(int argc, char const *argv[])
     insertDNode(first, 2, 4);
     insertDNode(first, 4, 6);
     printfallDNodes(first);
-
+    bubblesorted(first);
+    printfallDNodes(first);
     deleteDNode(&first, 6);
     deleteDNode(&first, 2);
-
     DNode *last = first;
     while (last->next != NULL)
     {
         last = last->next;
     }
+    printf("Inverse print: \n");
     inverse_printfallDNodes(last);
-    freeallDNodes(first);
+    first = freeallDNodes(first);
+    printfallDNodes(first);
     return 0;
 }
-*/

@@ -121,7 +121,40 @@ void deleteNode(Node **start, int value)
         current = current->next;
     }
 }
-/*
+void swap(Node *left, Node *right)
+{
+    left->data = left->data + right->data;
+    right->data = left->data - right->data;
+    left->data = left->data - right->data;
+}
+
+void bubblesorted(Node *start)
+{
+    int s;
+    Node *current, *l_current = NULL;
+    if (start == NULL)
+    {
+        printf("This Linked list is empty!\n");
+        return;
+    }
+    do
+    {
+        s = 0;
+        current = start;
+        while (current->next != l_current)
+        {
+            if (current->data > current->next->data)
+            {
+                swap(current, current->next);
+                s = 1;
+            }
+            current = current->next;
+        }
+        l_current = current;
+
+    } while (s);
+}
+
 int main(int argc, char const *argv[])
 {
     Node *first = NULL;
@@ -133,10 +166,11 @@ int main(int argc, char const *argv[])
     pushNode(&first, 0);
     pushNode(&first, -1);
     printfallNodes(first);
+    bubblesorted(first);
+    printfallNodes(first);
     deleteNode(&first, 2);
-    deleteNode(&first,-1);
+    deleteNode(&first, -1);
     printfallNodes(first);
     freeallNodes(first);
     return 0;
 }
-*/
