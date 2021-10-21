@@ -10,13 +10,18 @@ typedef struct cNode
 
 void printfallCNode(CNode *start)
 {
+    if (start == NULL)
+    {
+        printf("This circular linked list is empty!\n");
+        return;
+    }
     CNode *current = start;
     do
     {
         printf("%d, ", current->data);
         current = current->next;
     } while (current != start);
-    printf("|%d\n", current->data);
+    printf("| %d\n", current->data);
 }
 
 void appendCNode(CNode **start, int value)
@@ -24,32 +29,40 @@ void appendCNode(CNode **start, int value)
     CNode *newnode = (CNode *)malloc(sizeof(newnode));
     newnode->data = value;
     newnode->next = NULL;
-    if (*start == NULL)
+    if ((*start) == NULL)
     {
-        *start = newnode;
+        (*start) = newnode;
         newnode->next = newnode;
     }
     else
     {
-        CNode *current = *start;
-        while (current->next != *start)
+        CNode *current = (*start);
+        while (current->next != (*start))
         {
             current = current->next;
         }
         current->next = newnode;
-        newnode->next = *start;
+        newnode->next = (*start);
     }
 }
 
-void freeallCNodes(CNode *start)
+CNode *freeallCNodes(CNode *start)
 {
     CNode *current = start, *temp = NULL;
-    do
+    if (current->next == current)
     {
-        temp = current;
-        current = current->next;
-        free(temp);
-    } while (current != start);
+        free(current);
+    }
+    else
+    {
+        do
+        {
+            current = start->next;
+            start->next = current->next;
+            free(current);
+        } while (current != start);
+    }
+    return NULL;
 }
 
 void insertCNode(CNode *start, int after_value, int value)
@@ -100,7 +113,7 @@ void deleteCNode(CNode **start, int value)
 
 void pushCNode(CNode **start, int value)
 {
-    CNode *current = *start, *newnode = NULL;
+    CNode *current = (*start), *newnode = NULL;
     newnode = (CNode *)malloc(sizeof(CNode));
     newnode->data = value;
     newnode->next = (*start);
@@ -111,7 +124,7 @@ void pushCNode(CNode **start, int value)
     current->next = newnode;
     (*start) = newnode;
 }
-/*
+
 int main(int argc, char const *argv[])
 {
     CNode *first = NULL;
@@ -135,7 +148,7 @@ int main(int argc, char const *argv[])
     pushCNode(&first, 1);
     pushCNode(&first, 0);
     printfallCNode(first);
-    freeallCNodes(first);
+    first = freeallCNodes(first);
+    printfallCNode(first);
     return 0;
 }
-*/
