@@ -96,20 +96,14 @@ void insertDNode(DNode *start, int after_value, int value)
             newnode->data = value;
             newnode->prev = NULL;
             newnode->next = NULL;
-            if (current->next == NULL)
-            {
-                current->next = newnode;
-                newnode->prev = current;
-                return;
-            }
-            else
+            current->next = newnode;
+            newnode->prev = current;
+            if (current->next != NULL)
             {
                 newnode->next = current->next;
-                newnode->prev = current;
                 current->next->prev = newnode;
-                current->next = newnode;
-                return;
             }
+            break;
         }
         current = current->next;
     }
@@ -124,6 +118,7 @@ void deleteDNode(DNode **start, int value)
         *start = current->next;
         (*start)->prev = NULL;
         free(current);
+        return;
     }
     while (current != NULL)
     {
