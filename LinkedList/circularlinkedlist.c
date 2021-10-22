@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include "circularlinkedlist.h"
 
 typedef struct cNode
 {
@@ -48,7 +49,7 @@ void appendCNode(CNode **start, int value)
 
 CNode *freeallCNodes(CNode *start)
 {
-    CNode *current = start, *temp = NULL;
+    CNode *current = start;
     if (current->next == current)
     {
         free(current);
@@ -124,6 +125,7 @@ void pushCNode(CNode **start, int value)
     current->next = newnode;
     (*start) = newnode;
 }
+
 /*
 int main(int argc, char const *argv[])
 {

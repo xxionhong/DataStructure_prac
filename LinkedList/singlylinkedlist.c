@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include "singlylinkedlist.h"
 
 typedef struct node
 {
@@ -127,6 +128,7 @@ void deleteNode(Node **start, int value)
         current = current->next;
     }
 }
+
 void S_swap(Node *left, Node *right)
 {
     left->data = left->data + right->data;
@@ -160,6 +162,7 @@ void S_bubblesorted(Node *start)
 
     } while (s);
 }
+
 /*
 int main(int argc, char const *argv[])
 {

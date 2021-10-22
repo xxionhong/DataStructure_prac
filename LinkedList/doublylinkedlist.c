@@ -1,11 +1,11 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include "doublylinkedlist.h"
 
 typedef struct dNode
 {
     int data;
     struct dNode *prev, *next;
-
 } DNode;
 
 void printfallDNodes(DNode *start)
@@ -23,6 +23,7 @@ void printfallDNodes(DNode *start)
     printf("\n");
 }
 
+/*
 void inverse_printfallDNodes(DNode *end)
 {
     while (end != NULL)
@@ -32,6 +33,7 @@ void inverse_printfallDNodes(DNode *end)
     }
     printf("\n");
 }
+*/
 
 void appendDNode(DNode **start, int value)
 {
@@ -173,6 +175,7 @@ void D_bubblesorted(DNode *start)
 
     } while (s);
 }
+
 /*
 int main(int argc, char const *argv[])
 {

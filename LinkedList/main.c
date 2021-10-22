@@ -1,8 +1,8 @@
 #include <stdio.h>
-#include "singlylinkedlist.c"
-#include "doublylinkedlist.c"
-#include "circularlinkedlist.c"
-#include "doublycircularlinkedlist.c"
+#include "singlylinkedlist.h"
+#include "doublylinkedlist.h"
+#include "circularlinkedlist.h"
+#include "doublycircularlinkedlist.h"
 
 int main(int argc, char const *argv[])
 {
@@ -43,13 +43,6 @@ int main(int argc, char const *argv[])
     deleteDNode(&doubly, 6);
     deleteDNode(&doubly, 2);
     printfallDNodes(doubly);
-    DNode *last = doubly;
-    while (last->next != NULL)
-    {
-        last = last->next;
-    }
-    printf("inverse print: \n");
-    inverse_printfallDNodes(last);
     doubly = freeallDNodes(doubly);
     printfallDNodes(doubly);
 

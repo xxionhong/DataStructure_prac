@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include "doublycircularlinkedlist.h"
 
 typedef struct dcnode
 {
@@ -130,7 +131,7 @@ void deleteDCNode(DCNode **start, int value)
 DCNode *freeallDCNode(DCNode *start)
 {
     DCNode *current = start, *temp = NULL;
-    if (current->next = current)
+    if ((current->next = current))
     {
         free(current);
     }
