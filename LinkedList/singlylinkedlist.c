@@ -116,6 +116,7 @@ void deleteNode(Node **start, int value)
         free(current);
         return;
     }
+    // ** error, not fix yet! NULL access
     while (current != NULL)
     {
         if (current->next->data == value)
