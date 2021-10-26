@@ -43,6 +43,7 @@ void enqueue(cli_info *ci)
     pthread_mutex_unlock(&queue_mutex);
     return;
 }
+
 void dequeue(int uid)
 {
     pthread_mutex_lock(&queue_mutex);
@@ -85,27 +86,44 @@ void send_to_clients(int uid, char *send_buff)
 void *client_handler(void *client_in)
 {
     char recv_buff[BUFFER_SIZE];
+    int leave_f = 0;
     cli_info *client = (cli_info *)client_in;
     read(client->socketFD, recv_buff, BUFFER_SIZE);
     strcpy(client->name, recv_buff);
     printf("new client %s\n", client->name);
-    while (recv(client->socketFD, recv_buff, BUFFER_SIZE, 0) > 0)
+    while (1)
     {
-        if (sizeof(recv_buff) > 0)
+        if (leave_f)
         {
-            printf("%s(%d) -> %s\n", client->name, client->uuid, recv_buff);
-            send_to_clients(client->uuid, recv_buff);
-            if (!strcmp(recv_buff, "exit"))
-            {
-                printf("%s leave!\n", client->name);
-                dequeue(client->uuid);
-                break;
-            }
-            memset(recv_buff, 0, BUFFER_SIZE);
+            break;
         }
+        int receive = read(client->socketFD, recv_buff, BUFFER_SIZE);
+        printf("%d\t",receive);
+        if (receive > 0)
+        {
+            if (strlen(recv_buff) > 0)
+            {
+                printf("%s(%d) -> %s\n", client->name, client->uuid, recv_buff);
+                send_to_clients(client->uuid, recv_buff);
+
+            }
+        }
+        else if (receive == 0 || !strcmp(recv_buff, "exit"))
+        {
+            printf("%s leave!\n", client->name);
+            send_to_clients(client->uuid, recv_buff);
+            leave_f = 1;
+        }
+        else
+        {
+            leave_f = 1;
+        }
+        memset(recv_buff, 0, BUFFER_SIZE);
     }
+    dequeue(client->uuid);
     close(client->socketFD);
-    pthread_exit(NULL);
+    pthread_detach(pthread_self());
+    return NULL;
 }
 
 int main(int argc, char const *argv[])
@@ -144,15 +162,13 @@ int main(int argc, char const *argv[])
             close(connect_FD);
             continue;
         }
-        // read(connect_FD, name_buff, sizeof(name_buff));
         cli_info *cli_temp = (cli_info *)malloc(sizeof(cli_info));
         cli_temp->socketFD = connect_FD;
         cli_temp->uuid = uuid_init++;
-        // strcpy(cli_temp->name, name_buff);
-        // printf("New client %s\n", cli_temp->name);
         enqueue(cli_temp);
         pthread_create(&client_p, NULL, &client_handler, (void *)cli_temp);
         free(cli_temp);
+        sleep(2);
     }
     close(server_socketFD);
     close(connect_FD);
