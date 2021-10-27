@@ -27,6 +27,42 @@ typedef struct client_info
 cli_info *cli[MAX_CLIENT];
 
 // cli[MAX_CLIENT] control (enqueue/dequeue)
+void queue_manage(cli_info *ci, int stats)
+{
+    pthread_mutex_lock(&queue_mutex);
+    switch (stats)
+    {
+    case 0:
+        for (int i = 0; i < MAX_CLIENT; i++)
+        {
+            if (!cli[i])
+            {
+                cli[i] = ci;
+                cli_count += 1;
+                printf("server count: %d\n", cli_count);
+                break;
+            }
+        }
+        break;
+    case 1:
+        for (int i = 0; i < MAX_CLIENT; i++)
+        {
+            if (cli[i])
+            {
+                if (cli[i]->uuid == ci->uuid)
+                {
+                    cli[i] = NULL;
+                    cli_count -= 1;
+                    printf("server count: %d\n", cli_count);
+                    break;
+                }
+            }
+        }
+        break;
+    }
+    pthread_mutex_unlock(&queue_mutex);
+}
+/*
 void enqueue(cli_info *ci)
 {
     pthread_mutex_lock(&queue_mutex);
@@ -41,7 +77,6 @@ void enqueue(cli_info *ci)
         }
     }
     pthread_mutex_unlock(&queue_mutex);
-    return;
 }
 
 void dequeue(int uid)
@@ -61,21 +96,23 @@ void dequeue(int uid)
         }
     }
     pthread_mutex_unlock(&queue_mutex);
-    return;
 }
-
+*/
 // after server received a message, send to all clients expect itself
 void send_to_clients(int uid, char *send_buff)
 {
     pthread_mutex_lock(&queue_mutex);
     for (int i = 0; i < MAX_CLIENT; i++)
     {
-        if (cli[i]->uuid != uid)
+        if (cli[i])
         {
-            if (write(cli[i]->socketFD, send_buff, sizeof(send_buff)) < 0)
+            if (cli[i]->uuid != uid)
             {
-                perror("write\t");
-                break;
+                if (send(cli[i]->socketFD, send_buff, strlen(send_buff), 0) < 0)
+                {
+                    perror("write\t");
+                    break;
+                }
             }
         }
     }
@@ -87,10 +124,16 @@ void *client_handler(void *client_in)
 {
     char recv_buff[BUFFER_SIZE];
     int leave_f = 0;
+
     cli_info *client = (cli_info *)client_in;
+
     read(client->socketFD, recv_buff, BUFFER_SIZE);
     strcpy(client->name, recv_buff);
     printf("new client %s\n", client->name);
+    strcat(recv_buff, " < ");
+    strcat(recv_buff, client->name);
+    send_to_clients(client->uuid, recv_buff);
+    memset(recv_buff, 0, BUFFER_SIZE);
     while (1)
     {
         if (leave_f)
@@ -98,14 +141,13 @@ void *client_handler(void *client_in)
             break;
         }
         int receive = read(client->socketFD, recv_buff, BUFFER_SIZE);
-        printf("%d\t",receive);
+        // printf("%d\t", receive);
         if (receive > 0)
         {
             if (strlen(recv_buff) > 0)
             {
-                printf("%s(%d) -> %s\n", client->name, client->uuid, recv_buff);
+                printf("%s\n", recv_buff);
                 send_to_clients(client->uuid, recv_buff);
-
             }
         }
         else if (receive == 0 || !strcmp(recv_buff, "exit"))
@@ -120,7 +162,9 @@ void *client_handler(void *client_in)
         }
         memset(recv_buff, 0, BUFFER_SIZE);
     }
-    dequeue(client->uuid);
+    // dequeue(client->uuid);
+    queue_manage(client, 1);
+
     close(client->socketFD);
     pthread_detach(pthread_self());
     return NULL;
@@ -145,9 +189,15 @@ int main(int argc, char const *argv[])
     server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
     memset(&(server_addr.sin_zero), 0, sizeof(server_addr.sin_zero));
 
-    if (bind(server_socketFD, (struct sockaddr *)&server_addr, sizeof(server_addr)) == -1 || listen(server_socketFD, MAX_CLIENT) == -1)
+    if (bind(server_socketFD, (struct sockaddr *)&server_addr, sizeof(server_addr)) == -1)
     {
-        perror("Error:\t");
+        perror("bind:\t");
+        close(server_socketFD);
+        exit(EXIT_FAILURE);
+    }
+    if (listen(server_socketFD, MAX_CLIENT) == -1)
+    {
+        perror("listen:\t");
         close(server_socketFD);
         exit(EXIT_FAILURE);
     }
@@ -165,13 +215,14 @@ int main(int argc, char const *argv[])
         cli_info *cli_temp = (cli_info *)malloc(sizeof(cli_info));
         cli_temp->socketFD = connect_FD;
         cli_temp->uuid = uuid_init++;
-        enqueue(cli_temp);
+        // enqueue(cli_temp);
+        queue_manage(cli_temp, 0);
         pthread_create(&client_p, NULL, &client_handler, (void *)cli_temp);
-        free(cli_temp);
         sleep(2);
     }
     close(server_socketFD);
     close(connect_FD);
     pthread_mutex_destroy(&queue_mutex);
+    printf("\e[1;1H\e[2J");
     return 0;
 }
