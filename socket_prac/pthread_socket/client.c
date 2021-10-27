@@ -5,6 +5,7 @@
 #include <netdb.h>
 #include <unistd.h>
 #include <pthread.h>
+#include <signal.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <netinet/in.h>
@@ -13,6 +14,7 @@
 
 #define BUFFER_SIZE 1024
 #define PORT 12345
+#define REACH_MAXIMUM "reach_maximum"
 
 int socketFD;
 char name_buff[21];
@@ -26,7 +28,13 @@ void *recv_handler()
         int tmp = recv(socketFD, recv_buff, sizeof(recv_buff), 0);
         if (tmp > 0)
         {
-            printf("%s\n>", recv_buff);
+            printf("%s\n", recv_buff);
+            if (!strcmp(recv_buff, REACH_MAXIMUM))
+            {
+                printf("leaving...");
+                flag = 1;
+                break;
+            }
         }
         else if (tmp == 0)
         {
@@ -34,15 +42,17 @@ void *recv_handler()
             break;
         }
         memset(recv_buff, 0, BUFFER_SIZE);
+        printf(">");
     }
     pthread_exit(NULL);
 }
+
 void *send_handler()
 {
     char send_buff[BUFFER_SIZE + 21];
+    printf("Please input data (exit)\n>");
     while (1)
     {
-        printf("Please input data (exit)\n>");
         scanf("%s", send_buff);
         if (!strcmp(send_buff, "exit"))
         {
@@ -51,15 +61,26 @@ void *send_handler()
         strcat(send_buff, " < ");
         strcat(send_buff, name_buff);
         send(socketFD, send_buff, BUFFER_SIZE, 0);
-
         memset(send_buff, 0, BUFFER_SIZE + 21);
+        printf(">");
     }
     pthread_exit(NULL);
 }
+
+void sig_handler(int sig_num)
+{
+    flag = 1;
+    printf("Catch ctrl + c, %d\n", sig_num);
+    sleep(1);
+    printf("\e[1;1H\e[2J");
+    exit(EXIT_FAILURE);
+}
+
 int main(int argc, char const *argv[])
 {
 
     struct sockaddr_in conn_info;
+    signal(SIGINT, sig_handler);
     if ((socketFD = socket(AF_INET, SOCK_STREAM, 0)) == -1)
     {
         perror("socket\t");
@@ -89,7 +110,7 @@ int main(int argc, char const *argv[])
     }
     while (!flag)
     {
-        continue;
+        sleep(2);
     }
 
     close(socketFD);
