@@ -41,17 +41,11 @@ int main(int argc, char *argv[])
         perror("connect");
         exit(1);
     }
-    /*
-    // Receive file from server
 
-    write(sockfd, message, sizeof(message));
-    read(sockfd, buf, sizeof(buf));
-    printf("%s", buf);
-    close(sockfd);
-    */
+    printf("Enter a message: \n>");
     while (1)
     {
-        printf("Enter a message: ");
+
         scanf("%s", buf);
         send(sockfd, buf, strlen(buf), 0);
         if (!strcmp(buf, "exit"))
@@ -59,6 +53,7 @@ int main(int argc, char *argv[])
             close(sockfd);
             exit(EXIT_SUCCESS);
         }
+        printf(">");
     }
 
     return 0;

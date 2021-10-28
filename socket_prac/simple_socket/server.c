@@ -8,18 +8,27 @@
 #include <sys/wait.h>
 #include <sys/types.h>
 
-int main()
+int flag = 0;
 
+void sig_handler(int sig_numb)
+{
+    flag = 1;
+    exit(1);
+}
+
+int main()
 {
     int sockfd, new_fd;
-    char message[] = {"Message from server!\n"};
-    char buf[2000] = "";
-    struct sockaddr_in my_addr;
-    
+    struct sockaddr_in my_addr, client_addr;
+    socklen_t client_addr_len = sizeof(client_addr);
+    fd_set readfds;
+    FD_ZERO(&readfds);
+
+    signal(SIGINT, sig_handler);
     // TCP socket
     if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1)
     {
-        perror("socket");
+        perror("socket\t");
         exit(1);
     }
 
@@ -32,54 +41,68 @@ int main()
     // binding
     if (bind(sockfd, (struct sockaddr *)&my_addr, sizeof(struct sockaddr)) == -1)
     {
-        perror("bind");
+        perror("bind\t");
+        close(sockfd);
         exit(1);
     }
 
     // Start listening
     if (listen(sockfd, 10) == -1)
     {
-        perror("listen");
+        perror("listen\t");
+        close(sockfd);
         exit(1);
     }
-
-    // Connect
-
-    
-    if ((new_fd = accept(sockfd, NULL, NULL)) == -1)
+    pid_t pid;
+    while (!flag)
     {
-        perror("accept");
-        exit(1);
-    }
-    
-    write(new_fd, message, sizeof(message));
-    read(new_fd, buf, sizeof(buf));
-    printf("%s", buf);
-    /*
-    close(new_fd);
-    close(sockfd);
-    */
-
-    while (new_fd)
-    {
-        pid_t pid;
-        if ((pid = fork()) == 0)
+        if ((new_fd = accept(sockfd, (struct sockaddr *)&client_addr, &client_addr_len)) == -1)
         {
-            printf("Fork PID= %d\n", getpid());
-            while (recv(new_fd, buf, sizeof(buf), 0) > 0)
-            {
-                printf("Message Received: %s\n", buf);
-                if (!strcmp(buf, "exit"))
-                {
-                    close(new_fd);
-                    printf("Kill Pid: %d\n", getpid());
-                    kill(getpid(),SIGKILL);
-                }
-                memset(buf, 0, sizeof(buf));
-            }
+            perror("accept\t");
             close(new_fd);
-            exit(0);
+            close(sockfd);
+            exit(1);
+        }
+        pid = fork();
+        if (pid == -1)
+        {
+            perror("fork\t");
+            close(new_fd);
+            close(sockfd);
+            exit(1);
+        }
+        else if (pid == 0) // child
+        {
+            char recv_buff[1024];
+            while (!flag)
+            {
+                FD_SET(new_fd, &readfds);
+                if (select(new_fd + 1, &readfds, NULL, NULL, NULL) == 1)
+                {
+                    memset(recv_buff, 0, sizeof(recv_buff));
+                    int ret = read(new_fd, recv_buff, sizeof(recv_buff));
+                    printf("PID %d: %s\n", getpid(), recv_buff);
+                    if (ret == 0 || !strcmp(recv_buff, "exit"))
+                    {
+                        printf("client close: %d\n", new_fd);
+                        break;
+                    }
+                    else if (ret == -1)
+                    {
+                        perror("recv \t");
+                        break;
+                    }
+                }
+            }
+            flag = 1;
+            close(new_fd);
+        }
+        else
+        {
+            continue;
         }
     }
+    flag = 1;
+    close(sockfd);
     return 0;
 }
