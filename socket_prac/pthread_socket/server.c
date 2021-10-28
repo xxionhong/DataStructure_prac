@@ -14,6 +14,7 @@
 #define BUFFER_SIZE 1024
 #define PORT 12345
 #define REACH_MAXIMUM "reach_maximum"
+#define SERVER_LEFT "server_left"
 int cli_count = 0, uuid_init = 100;
 
 pthread_mutex_t queue_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -28,10 +29,10 @@ typedef struct client_info
 cli_info *cli[MAX_CLIENT];
 
 // cli[MAX_CLIENT] control (enqueue/dequeue)
-void queue_manage(cli_info *ci, int stats)
+void queue_manage(cli_info *ci, int state)
 {
     pthread_mutex_lock(&queue_mutex);
-    switch (stats)
+    switch (state)
     {
     case 0:
         for (int i = 0; i < MAX_CLIENT; i++)
@@ -130,18 +131,34 @@ void *client_handler(void *client_in)
     queue_manage(client, 1);
 
     close(client->socketFD);
-    pthread_detach(pthread_self());
-    return NULL;
+    pthread_exit(NULL);
+}
+// close all client fd after server left
+void close_all_fd()
+{
+    pthread_mutex_lock(&queue_mutex);
+    for (int i = 0; i < MAX_CLIENT; i++)
+    {
+        if (cli[i])
+        {
+            send(cli[i]->socketFD, SERVER_LEFT, sizeof(SERVER_LEFT), 0);
+            close(cli[i]->socketFD);
+        }
+    }
+    pthread_mutex_unlock(&queue_mutex);
 }
 
+// handling signal SIGINT
 void sig_handler(sig_atomic_t sig_num)
 {
     printf("Catch ctrl + c, SIG_NUM=%d\n", sig_num);
-    sleep(1);
+    close_all_fd();
+    sleep(2);
     printf("\e[1;1H\e[2J");
     exit(EXIT_SUCCESS);
 }
 
+// for server function
 void *server_handler()
 {
     while (1)
@@ -161,8 +178,14 @@ void *server_handler()
             }
             pthread_mutex_unlock(&queue_mutex);
             break;
+        case 9:
+            close_all_fd();
+            printf("Server exit!\n");
+            kill(getpid(), SIGINT);
+            break;
         }
     }
+    pthread_exit(NULL);
 }
 
 int main(int argc, char const *argv[])

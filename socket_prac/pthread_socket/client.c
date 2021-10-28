@@ -15,6 +15,7 @@
 #define BUFFER_SIZE 1024
 #define PORT 12345
 #define REACH_MAXIMUM "reach_maximum"
+#define SERVER_LEFT "server_left"
 
 int socketFD;
 char name_buff[21];
@@ -29,7 +30,7 @@ void *recv_handler()
         if (tmp > 0)
         {
             printf("%s\n", recv_buff);
-            if (!strcmp(recv_buff, REACH_MAXIMUM))
+            if (!strcmp(recv_buff, REACH_MAXIMUM) || !strcmp(recv_buff, SERVER_LEFT))
             {
                 printf("leaving...");
                 flag = 1;
