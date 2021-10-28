@@ -57,6 +57,7 @@ void *send_handler()
         if (!strcmp(send_buff, "exit"))
         {
             flag = 1;
+            break;
         }
         strcat(send_buff, " < ");
         strcat(send_buff, name_buff);
@@ -70,7 +71,7 @@ void *send_handler()
 void sig_handler(int sig_num)
 {
     flag = 1;
-    printf("Catch ctrl + c, %d\n", sig_num);
+    printf("Catch ctrl + c, SIG_NUM=%d\n", sig_num);
     sleep(1);
     printf("\e[1;1H\e[2J");
     exit(EXIT_FAILURE);
