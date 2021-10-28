@@ -15,7 +15,7 @@
 #define PORT 12345
 #define REACH_MAXIMUM "reach_maximum"
 #define SERVER_LEFT "server_left"
-int cli_count = 0, uuid_init = 100;
+int cli_count = 0, c_left_f = 0, s_left_f = 0;
 
 pthread_mutex_t queue_mutex = PTHREAD_MUTEX_INITIALIZER;
 
@@ -23,7 +23,6 @@ typedef struct client_info
 {
     char name[21];
     int socketFD;
-    int uuid;
 } cli_info;
 
 cli_info *cli[MAX_CLIENT];
@@ -51,7 +50,7 @@ void queue_manage(cli_info *ci, int state)
         {
             if (cli[i])
             {
-                if (cli[i]->uuid == ci->uuid)
+                if (cli[i]->socketFD == ci->socketFD)
                 {
                     cli[i] = NULL;
                     cli_count -= 1;
@@ -66,14 +65,14 @@ void queue_manage(cli_info *ci, int state)
 }
 
 // after server received a message, send to all clients expect itself
-void send_to_clients(int uid, char *send_buff)
+void send_to_clients(int fd, char *send_buff)
 {
     pthread_mutex_lock(&queue_mutex);
     for (int i = 0; i < MAX_CLIENT; i++)
     {
         if (cli[i])
         {
-            if (cli[i]->uuid != uid)
+            if (cli[i]->socketFD != fd)
             {
                 if (send(cli[i]->socketFD, send_buff, strlen(send_buff), 0) < 0)
                 {
@@ -90,53 +89,45 @@ void send_to_clients(int uid, char *send_buff)
 void *client_handler(void *client_in)
 {
     char recv_buff[BUFFER_SIZE];
-    int leave_f = 0;
-
     cli_info *client = (cli_info *)client_in;
-
-    read(client->socketFD, recv_buff, BUFFER_SIZE + 21);
+    read(client->socketFD, recv_buff, BUFFER_SIZE);
+    strcat(recv_buff, "\0");
     strcpy(client->name, recv_buff);
     printf("new client %s\n", client->name);
     strcat(recv_buff, " < ");
     strcat(recv_buff, client->name);
-    send_to_clients(client->uuid, recv_buff);
+    send_to_clients(client->socketFD, recv_buff);
     memset(recv_buff, 0, BUFFER_SIZE);
-    while (1)
+    while (!c_left_f)
     {
-        if (leave_f)
-        {
-            break;
-        }
         int receive = read(client->socketFD, recv_buff, BUFFER_SIZE);
         if (receive > 0)
         {
             if (strlen(recv_buff) > 0)
             {
                 printf("%s\n", recv_buff);
-                send_to_clients(client->uuid, recv_buff);
+                send_to_clients(client->socketFD, recv_buff);
             }
         }
         else if (receive == 0 || !strcmp(recv_buff, "exit"))
         {
             printf("%s leave!\n", client->name);
-            send_to_clients(client->uuid, recv_buff);
-            leave_f = 1;
+            send_to_clients(client->socketFD, recv_buff);
+            c_left_f = 1;
         }
         else
         {
-            leave_f = 1;
+            c_left_f = 1;
         }
         memset(recv_buff, 0, BUFFER_SIZE);
     }
     queue_manage(client, 1);
-
     close(client->socketFD);
     pthread_exit(NULL);
 }
 // close all client fd after server left
 void close_all_fd()
 {
-    pthread_mutex_lock(&queue_mutex);
     for (int i = 0; i < MAX_CLIENT; i++)
     {
         if (cli[i])
@@ -145,23 +136,18 @@ void close_all_fd()
             close(cli[i]->socketFD);
         }
     }
-    pthread_mutex_unlock(&queue_mutex);
 }
 
 // handling signal SIGINT
 void sig_handler(sig_atomic_t sig_num)
 {
-    printf("Catch ctrl + c, SIG_NUM=%d\n", sig_num);
-    close_all_fd();
-    sleep(2);
-    printf("\e[1;1H\e[2J");
-    exit(EXIT_SUCCESS);
+    s_left_f = 1;
 }
 
 // for server function
 void *server_handler()
 {
-    while (1)
+    while (!s_left_f)
     {
         int input_content;
         scanf("%d", &input_content);
@@ -173,15 +159,14 @@ void *server_handler()
             {
                 if (cli[i])
                 {
-                    printf("Name: %10s, uuid:%d, socketfd: %d\n", cli[i]->name, cli[i]->uuid, cli[i]->socketFD);
+                    printf("Name: %10s, socketfd: %d\n", cli[i]->name, cli[i]->socketFD);
                 }
             }
             pthread_mutex_unlock(&queue_mutex);
             break;
         case 9:
-            close_all_fd();
+            s_left_f = 1;
             printf("Server exit!\n");
-            kill(getpid(), SIGINT);
             break;
         }
     }
@@ -219,7 +204,7 @@ int main(int argc, char const *argv[])
     }
     printf("Starting Server Side Function...\n");
     pthread_create(&server_p, NULL, &server_handler, NULL);
-    while (1)
+    while (!s_left_f)
     {
         connect_FD = accept(server_socketFD, NULL, NULL);
         if ((cli_count + 1) == MAX_CLIENT)
@@ -231,12 +216,13 @@ int main(int argc, char const *argv[])
         }
         cli_info *cli_temp = (cli_info *)malloc(sizeof(cli_info));
         cli_temp->socketFD = connect_FD;
-        cli_temp->uuid = uuid_init++;
         queue_manage(cli_temp, 0);
         pthread_create(&client_p, NULL, &client_handler, (void *)cli_temp);
         sleep(2);
     }
+    pthread_join(server_p, NULL);
     close(server_socketFD);
+    close_all_fd();
     close(connect_FD);
     pthread_mutex_destroy(&queue_mutex);
 

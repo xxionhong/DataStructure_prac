@@ -24,7 +24,7 @@ int flag = 0;
 void *recv_handler()
 {
     char recv_buff[BUFFER_SIZE];
-    while (1)
+    while (!flag)
     {
         int tmp = recv(socketFD, recv_buff, sizeof(recv_buff), 0);
         if (tmp > 0)
@@ -45,6 +45,7 @@ void *recv_handler()
         memset(recv_buff, 0, BUFFER_SIZE);
         printf(">");
     }
+    printf("recv_handler exit\n");
     pthread_exit(NULL);
 }
 
@@ -52,7 +53,7 @@ void *send_handler()
 {
     char send_buff[BUFFER_SIZE + 21];
     printf("Please input data (exit)\n>");
-    while (1)
+    while (!flag)
     {
         scanf("%s", send_buff);
         if (!strcmp(send_buff, "exit"))
@@ -72,10 +73,6 @@ void *send_handler()
 void sig_handler(int sig_num)
 {
     flag = 1;
-    printf("Catch ctrl + c, SIG_NUM=%d\n", sig_num);
-    sleep(1);
-    printf("\e[1;1H\e[2J");
-    exit(EXIT_FAILURE);
 }
 
 int main(int argc, char const *argv[])
@@ -102,19 +99,15 @@ int main(int argc, char const *argv[])
     scanf("%20s", name_buff);
     send(socketFD, name_buff, sizeof(name_buff), 0);
 
-    pthread_t recv_handler_t, send_handler_t;
-    if ((pthread_create(&recv_handler_t, NULL, (void *)&recv_handler, NULL) != 0) ||
-        (pthread_create(&send_handler_t, NULL, (void *)&send_handler, NULL) != 0))
+    pthread_t send_handler_t, recv_handler_t;
+    if ((pthread_create(&send_handler_t, NULL, (void *)&send_handler, NULL) != 0) ||
+        (pthread_create(&recv_handler_t, NULL, (void *)&send_handler, NULL) != 0))
     {
         perror("handler\t");
         close(socketFD);
         exit(EXIT_FAILURE);
     }
-    while (!flag)
-    {
-        sleep(2);
-    }
-
+    pthread_join(send_handler_t, NULL);
     close(socketFD);
     printf("\e[1;1H\e[2J");
     return 0;
