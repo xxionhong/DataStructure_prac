@@ -14,11 +14,19 @@
 #define FD_SIZE 100
 #define MAX_BACK 100
 
+/*
+typedef struct client_info
+{
+    int fd;
+    struct client_info *next;
+} cli_info;
+*/
 int main(int argc, char **argv)
 {
+    int left_flag = 0;
     int listenfd, connfd, sockfd, maxfd, maxi, i;
     int nready, client[FD_SIZE]; //!> 接收select返回值、保存客户端套接字
-    int lens;
+    // int lens;
     ssize_t n;           //!> read字节数
     fd_set rset, allset; //!> 不要理解成就只能保存一个，其实fd_set有点像封装的数组
     char buf[BUFFER_SIZE];
@@ -67,12 +75,13 @@ int main(int argc, char **argv)
     FD_SET(listenfd, &allset);
     //!> 说明当前我对此套接字有兴趣，下次select的时候通知我！
 
-    while (1)
+    while (!left_flag)
     {
         rset = allset; //!> 由于allset可能每次一个循环之后都有变化，所以每次都赋值一次
         if ((nready = select(maxfd + 1, &rset, NULL, NULL, NULL)) == -1)
         { //!> if 存在关注
             printf("Select Erorr : %d\n", errno);
+            left_flag = 1;
             exit(EXIT_FAILURE);
         }
 
@@ -146,25 +155,21 @@ int main(int argc, char **argv)
                     }
                     if (n == 0)
                     {
-                        printf("no data\n");
+                        // printf("no data\n");
                         close(sockfd); //!> 说明在这个请求端口上读完了！
                         FD_CLR(sockfd, &allset);
                         client[i] = -1;
                         continue;
                     }
 
-                    printf("Server Recv: %s\n", buf);
-
-                    if (strcmp(buf, "q") == 0) //!> 客户端输入“q”退出标志
+                    printf("\t%s < %d\n", buf, sockfd);
+                    if (strcmp(buf, "exit") == 0) //!> 客户端输入“q”退出标志
                     {
                         close(sockfd);
                         FD_CLR(sockfd, &allset);
                         client[i] = -1;
                         continue;
                     }
-
-                    printf("Server send : %s\n", buf);
-                    write(sockfd, buf, n); //!> 读出来的写进去
                 }
             }
         }
