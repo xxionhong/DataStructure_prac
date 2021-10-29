@@ -5,7 +5,6 @@
 #include <netdb.h>
 #include <unistd.h>
 #include <pthread.h>
-#include <signal.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <netinet/in.h>
@@ -14,8 +13,6 @@
 
 #define BUFFER_SIZE 1024
 #define PORT 12345
-#define REACH_MAXIMUM "reach_maximum"
-#define SERVER_LEFT "server_left"
 
 int socketFD;
 char name_buff[21];
@@ -29,13 +26,7 @@ void *recv_handler()
         int tmp = recv(socketFD, recv_buff, sizeof(recv_buff), 0);
         if (tmp > 0)
         {
-            printf("%s\n", recv_buff);
-            if (!strcmp(recv_buff, REACH_MAXIMUM) || !strcmp(recv_buff, SERVER_LEFT))
-            {
-                printf("leaving...");
-                flag = 1;
-                break;
-            }
+            printf("%s\n>", recv_buff);
         }
         else if (tmp == 0)
         {
@@ -43,43 +34,32 @@ void *recv_handler()
             break;
         }
         memset(recv_buff, 0, BUFFER_SIZE);
-        printf(">");
     }
-    printf("recv_handler exit\n");
     pthread_exit(NULL);
 }
-
 void *send_handler()
 {
     char send_buff[BUFFER_SIZE + 21];
-    printf("Please input data (exit)\n>");
     while (!flag)
     {
+        printf("Please input data (exit)\n>");
         scanf("%s", send_buff);
         if (!strcmp(send_buff, "exit"))
         {
             flag = 1;
-            break;
         }
         strcat(send_buff, " < ");
         strcat(send_buff, name_buff);
         send(socketFD, send_buff, BUFFER_SIZE, 0);
+
         memset(send_buff, 0, BUFFER_SIZE + 21);
-        printf(">");
     }
     pthread_exit(NULL);
 }
-
-void sig_handler(int sig_num)
-{
-    flag = 1;
-}
-
 int main(int argc, char const *argv[])
 {
 
     struct sockaddr_in conn_info;
-    signal(SIGINT, sig_handler);
     if ((socketFD = socket(AF_INET, SOCK_STREAM, 0)) == -1)
     {
         perror("socket\t");
@@ -99,9 +79,9 @@ int main(int argc, char const *argv[])
     scanf("%20s", name_buff);
     send(socketFD, name_buff, sizeof(name_buff), 0);
 
-    pthread_t send_handler_t, recv_handler_t;
-    if ((pthread_create(&send_handler_t, NULL, (void *)&send_handler, NULL) != 0) ||
-        (pthread_create(&recv_handler_t, NULL, (void *)&send_handler, NULL) != 0))
+    pthread_t recv_handler_t, send_handler_t;
+    if ((pthread_create(&recv_handler_t, NULL, (void *)&recv_handler, NULL) != 0) ||
+        (pthread_create(&send_handler_t, NULL, (void *)&send_handler, NULL) != 0))
     {
         perror("handler\t");
         close(socketFD);

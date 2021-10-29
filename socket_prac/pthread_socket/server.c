@@ -4,7 +4,6 @@
 #include <string.h>
 #include <unistd.h>
 #include <pthread.h>
-#include <signal.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <sys/wait.h>
@@ -13,9 +12,8 @@
 #define MAX_CLIENT 10
 #define BUFFER_SIZE 1024
 #define PORT 12345
-#define REACH_MAXIMUM "reach_maximum"
-#define SERVER_LEFT "server_left"
-int cli_count = 0, c_left_f = 0, s_left_f = 0;
+
+int cli_count = 0, server_flag = 0;
 
 pthread_mutex_t queue_mutex = PTHREAD_MUTEX_INITIALIZER;
 
@@ -28,10 +26,10 @@ typedef struct client_info
 cli_info *cli[MAX_CLIENT];
 
 // cli[MAX_CLIENT] control (enqueue/dequeue)
-void queue_manage(cli_info *ci, int state)
+void queue_manage(cli_info *ci, int stats)
 {
     pthread_mutex_lock(&queue_mutex);
-    switch (state)
+    switch (stats)
     {
     case 0:
         for (int i = 0; i < MAX_CLIENT; i++)
@@ -40,7 +38,7 @@ void queue_manage(cli_info *ci, int state)
             {
                 cli[i] = ci;
                 cli_count += 1;
-
+                printf("server count: %d\n", cli_count);
                 break;
             }
         }
@@ -54,13 +52,13 @@ void queue_manage(cli_info *ci, int state)
                 {
                     cli[i] = NULL;
                     cli_count -= 1;
+                    printf("server count: %d\n", cli_count);
                     break;
                 }
             }
         }
         break;
     }
-    printf("server count: %d\n", cli_count);
     pthread_mutex_unlock(&queue_mutex);
 }
 
@@ -85,22 +83,40 @@ void send_to_clients(int fd, char *send_buff)
     pthread_mutex_unlock(&queue_mutex);
 }
 
+void close_all_fd()
+{
+    for (int i = 0; i < MAX_CLIENT; i++)
+    {
+        if (cli[i])
+        {
+            close(cli[i]->socketFD);
+        }
+    }
+}
+
 // for pthread clients
 void *client_handler(void *client_in)
 {
     char recv_buff[BUFFER_SIZE];
+    int client_flag = 0;
+
     cli_info *client = (cli_info *)client_in;
+
     read(client->socketFD, recv_buff, BUFFER_SIZE);
-    strcat(recv_buff, "\0");
     strcpy(client->name, recv_buff);
     printf("new client %s\n", client->name);
     strcat(recv_buff, " < ");
     strcat(recv_buff, client->name);
     send_to_clients(client->socketFD, recv_buff);
     memset(recv_buff, 0, BUFFER_SIZE);
-    while (!c_left_f)
+    while (!client_flag)
     {
+        if (client_flag)
+        {
+            break;
+        }
         int receive = read(client->socketFD, recv_buff, BUFFER_SIZE);
+        // printf("%d\t", receive);
         if (receive > 0)
         {
             if (strlen(recv_buff) > 0)
@@ -113,73 +129,31 @@ void *client_handler(void *client_in)
         {
             printf("%s leave!\n", client->name);
             send_to_clients(client->socketFD, recv_buff);
-            c_left_f = 1;
+            client_flag = 1;
         }
         else
         {
-            c_left_f = 1;
+            client_flag = 1;
         }
         memset(recv_buff, 0, BUFFER_SIZE);
     }
     queue_manage(client, 1);
-    close(client->socketFD);
+    free(client);
     pthread_exit(NULL);
 }
-// close all client fd after server left
-void close_all_fd()
-{
-    for (int i = 0; i < MAX_CLIENT; i++)
-    {
-        if (cli[i])
-        {
-            send(cli[i]->socketFD, SERVER_LEFT, sizeof(SERVER_LEFT), 0);
-            close(cli[i]->socketFD);
-        }
-    }
-}
 
-// handling signal SIGINT
-void sig_handler(sig_atomic_t sig_num)
+void sig_handler(int a)
 {
-    s_left_f = 1;
-}
-
-// for server function
-void *server_handler()
-{
-    while (!s_left_f)
-    {
-        int input_content;
-        scanf("%d", &input_content);
-        switch (input_content)
-        {
-        case 0:
-            pthread_mutex_lock(&queue_mutex);
-            for (int i = 0; i < MAX_CLIENT; i++)
-            {
-                if (cli[i])
-                {
-                    printf("Name: %10s, socketfd: %d\n", cli[i]->name, cli[i]->socketFD);
-                }
-            }
-            pthread_mutex_unlock(&queue_mutex);
-            break;
-        case 9:
-            s_left_f = 1;
-            printf("Server exit!\n");
-            break;
-        }
-    }
-    pthread_exit(NULL);
+    server_flag = 1;
 }
 
 int main(int argc, char const *argv[])
 {
     int server_socketFD, connect_FD;
     struct sockaddr_in server_addr;
-    pthread_t client_p, server_p;
+    pthread_t client_p;
     memset(cli, 0, sizeof(cli_info) * MAX_CLIENT);
-    signal(SIGINT, sig_handler); // catch interrupt
+    signal(SIGINT, sig_handler);
     if ((server_socketFD = socket(AF_INET, SOCK_STREAM, 0)) == -1)
     {
         perror("Socket\t");
@@ -203,28 +177,29 @@ int main(int argc, char const *argv[])
         exit(EXIT_FAILURE);
     }
     printf("Starting Server Side Function...\n");
-    pthread_create(&server_p, NULL, &server_handler, NULL);
-    while (!s_left_f)
+
+    while (!server_flag)
     {
         connect_FD = accept(server_socketFD, NULL, NULL);
         if ((cli_count + 1) == MAX_CLIENT)
         {
-            printf("%s\n", REACH_MAXIMUM);
-            send(connect_FD, REACH_MAXIMUM, sizeof(REACH_MAXIMUM), 0);
+            printf("MAX_CLIENT reached\n");
             close(connect_FD);
             continue;
         }
-        cli_info *cli_temp = (cli_info *)malloc(sizeof(cli_info));
-        cli_temp->socketFD = connect_FD;
-        queue_manage(cli_temp, 0);
-        pthread_create(&client_p, NULL, &client_handler, (void *)cli_temp);
-        sleep(2);
+        else if (connect_FD != 0)
+        {
+            cli_info *cli_temp = (cli_info *)malloc(sizeof(cli_info));
+            cli_temp->socketFD = connect_FD;
+            queue_manage(cli_temp, 0);
+            pthread_create(&client_p, NULL, &client_handler, (void *)cli_temp);
+            pthread_join(client_p, NULL);
+            free(cli_temp);
+        }
     }
-    pthread_join(server_p, NULL);
     close(server_socketFD);
     close_all_fd();
-    close(connect_FD);
     pthread_mutex_destroy(&queue_mutex);
-
+    printf("\e[1;1H\e[2J");
     return 0;
 }
