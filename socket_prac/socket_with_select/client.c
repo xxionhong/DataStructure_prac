@@ -1,171 +1,104 @@
-/*
-    code from https://iter01.com/319359.html
-    for study only
-*/
-
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <errno.h>
-#include <unistd.h>
-#include <time.h>
-#include <sys/socket.h>
-#include <sys/select.h>
-#include <sys/types.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
+#include <string.h>
 #include <netdb.h>
+#include <unistd.h>
 #include <fcntl.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
 
-#define PORT 8888
-#define MAX_LINE 2048
+#define BUFFER_SIZE 1024
+#define PORT 12345
+#define STDIN 0
 
-int max(int a, int b)
+void set_nonblock(int fd)
 {
-    return a > b ? a : b;
-}
-
-/*readline函式實現*/
-ssize_t readline(int fd, char *vptr, size_t maxlen)
-{
-    ssize_t n, rc;
-    char c, *ptr;
-
-    ptr = vptr;
-    for (n = 1; n < maxlen; n++)
+    int flags;
+    flags = fcntl(fd, F_GETFL, 0);
+    if (flags < 0)
     {
-        if ((rc = read(fd, &c, 1)) == 1)
-        {
-            *ptr++ = c;
-            if (c == '\n')
-                break; /* newline is stored, like fgets() */
-        }
-        else if (rc == 0)
-        {
-            *ptr = 0;
-            return (n - 1); /* EOF, n - 1 bytes were read */
-        }
-        else
-            return (-1); /* error, errno set by read() */
+        perror("fcntl\t");
+        exit(EXIT_FAILURE);
     }
-
-    *ptr = 0; /* null terminate like fgets() */
-    return (n);
+    if (fcntl(fd, F_SETFL, flags | O_NONBLOCK) < 0)
+    {
+        perror("fcntl\t");
+        exit(EXIT_FAILURE);
+    }
 }
 
-/*普通客戶端訊息處理函式*/
-void str_cli(int sockfd)
+int main(int argc, char const *argv[])
 {
-    /*傳送和接收緩衝區*/
-    char sendline[MAX_LINE], recvline[MAX_LINE];
-    while (fgets(sendline, MAX_LINE, stdin) != NULL)
-    {
-        write(sockfd, sendline, strlen(sendline));
-
-        bzero(recvline, MAX_LINE);
-        if (readline(sockfd, recvline, MAX_LINE) == 0)
-        {
-            perror("server terminated prematurely");
-            exit(1);
-        } // if
-
-        if (fputs(recvline, stdout) == EOF)
-        {
-            perror("fputs error");
-            exit(1);
-        } // if
-
-        bzero(sendline, MAX_LINE);
-    } // while
-}
-
-/*採用select的客戶端訊息處理函式*/
-void str_cli2(FILE *fp, int sockfd)
-{
-    int maxfd;
-    fd_set rset;
-    /*傳送和接收緩衝區*/
-    char sendline[MAX_LINE], recvline[MAX_LINE];
-
-    FD_ZERO(&rset);
-    while (1)
-    {
-        /*將檔案描述符和套接字描述符新增到rset描述符集*/
-        FD_SET(fileno(fp), &rset);
-        FD_SET(sockfd, &rset);
-        maxfd = max(fileno(fp), sockfd) + 1;
-        select(maxfd, &rset, NULL, NULL, NULL);
-
-        if (FD_ISSET(fileno(fp), &rset))
-        {
-            if (fgets(sendline, MAX_LINE, fp) == NULL)
-            {
-                printf("read nothing~\n");
-                close(sockfd); /*all done*/
-                return;
-            } // if
-            sendline[strlen(sendline) - 1] = '\0';
-            write(sockfd, sendline, strlen(sendline));
-        } // if
-
-        if (FD_ISSET(sockfd, &rset))
-        {
-            if (readline(sockfd, recvline, MAX_LINE) == 0)
-            {
-
-                perror("handleMsg: server terminated prematurely.\n");
-                exit(1);
-            } // if
-
-            if (fputs(recvline, stdout) == EOF)
-            {
-                perror("fputs error");
-                exit(1);
-            } // if
-        }     // if
-    }         // while
-}
-
-int main(int argc, char **argv)
-{
-    /*宣告套接字和連結伺服器地址*/
-    int sockfd;
-    struct sockaddr_in servaddr;
-
-    /*判斷是否為合法輸入*/
-    if (argc != 2)
-    {
-        perror("usage:tcpcli <IPaddress>");
-        exit(1);
-    } // if
-
-    /*(1) 建立套接字*/
+    char recv_buff[BUFFER_SIZE], send_buff[BUFFER_SIZE];
+    struct sockaddr_in conn_info;
+    int sockfd, left_flag = 0;
+    memset(recv_buff, 0, BUFFER_SIZE);
+    memset(send_buff, 0, BUFFER_SIZE);
     if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1)
     {
-        perror("socket error");
-        exit(1);
-    } // if
+        perror("socket\t");
+        close(sockfd);
+        exit(EXIT_FAILURE);
+    }
+    // set_nonblock(sockfd);
+    conn_info.sin_family = AF_INET;
+    conn_info.sin_port = htons(PORT);
+    conn_info.sin_addr.s_addr = inet_addr("127.0.0.1");
+    memset(&(conn_info.sin_zero), 0, sizeof(conn_info.sin_zero));
 
-    /*(2) 設定連結伺服器地址結構*/
-    bzero(&servaddr, sizeof(servaddr));
-    servaddr.sin_family = AF_INET;
-    servaddr.sin_port = htons(PORT);
-    if (inet_pton(AF_INET, argv[1], &servaddr.sin_addr) < 0)
+    if (connect(sockfd, (struct sockaddr *)&conn_info, sizeof(struct sockaddr)) == -1)
     {
-        printf("inet_pton error for %s\n", argv[1]);
-        exit(1);
-    } // if
-
-    /*(3) 傳送連結伺服器請求*/
-    if (connect(sockfd, (struct sockaddr *)&servaddr, sizeof(servaddr)) < 0)
+        perror("connect\t");
+        close(sockfd);
+        exit(EXIT_FAILURE);
+    }
+    set_nonblock(sockfd);
+    fd_set readfds;
+    FD_ZERO(&readfds);
+    FD_SET(STDIN_FILENO, &readfds);
+    FD_SET(sockfd, &readfds);
+    struct timeval timeout = {2, 0};
+    if (select(sockfd + 1, &readfds, NULL, NULL, &timeout) == -1)
     {
-        perror("connect error");
-        exit(1);
-    } // if
+        perror("select\t");
+        close(sockfd);
+        exit(EXIT_FAILURE);
+    }
 
-    /*呼叫普通訊息處理函式*/
-    str_cli(sockfd);
-    /*呼叫採用select技術的訊息處理函式*/
-    // str_cli2(stdin , sockfd);
-    exit(0);
+    while (!left_flag)
+    {
+        scanf("%s", send_buff);
+        if (FD_ISSET(sockfd, &readfds))
+        {
+            int temp = read(sockfd, recv_buff, strlen(recv_buff));
+            if (temp > 0)
+            {
+                printf("%s\n>", recv_buff);
+            }
+            else if (temp == 0)
+            {
+                left_flag = 1;
+                break;
+            }
+            memset(recv_buff, 0, BUFFER_SIZE);
+        }
+        else
+        {
+            FD_CLR(sockfd, &readfds);
+            write(sockfd, send_buff, strlen(send_buff));
+            if (!strcmp(send_buff, "exit"))
+            {
+                left_flag = 1;
+                break;
+            }
+            memset(send_buff, 0, BUFFER_SIZE);
+        }
+    }
+    close(sockfd);
+
+    return 0;
 }
