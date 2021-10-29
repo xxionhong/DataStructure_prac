@@ -12,6 +12,7 @@
 #define MAX_CLIENT 10
 #define BUFFER_SIZE 1024
 #define PORT 12345
+#define atoa(x) #x
 
 int cli_count = 0, server_flag = 0;
 
@@ -19,7 +20,6 @@ pthread_mutex_t queue_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 typedef struct client_info
 {
-    char name[21];
     int socketFD;
 } cli_info;
 
@@ -103,10 +103,10 @@ void *client_handler(void *client_in)
     cli_info *client = (cli_info *)client_in;
 
     read(client->socketFD, recv_buff, BUFFER_SIZE);
-    strcpy(client->name, recv_buff);
-    printf("new client %s\n", client->name);
+    // strcpy(client->name, recv_buff);
+    printf("new client %d\n", client->socketFD);
     strcat(recv_buff, " < ");
-    strcat(recv_buff, client->name);
+    strcat(recv_buff, atoa(client->socketFD));
     send_to_clients(client->socketFD, recv_buff);
     memset(recv_buff, 0, BUFFER_SIZE);
     while (!client_flag)
@@ -126,7 +126,7 @@ void *client_handler(void *client_in)
         }
         else if (receive == 0 || !strcmp(recv_buff, "exit"))
         {
-            printf("%s leave!\n", client->name);
+            printf("%d leave!\n", client->socketFD);
             send_to_clients(client->socketFD, recv_buff);
             client_flag = 1;
         }
@@ -137,7 +137,6 @@ void *client_handler(void *client_in)
         memset(recv_buff, 0, BUFFER_SIZE);
     }
     queue_manage(client, 1);
-    free(client);
     pthread_exit(NULL);
 }
 

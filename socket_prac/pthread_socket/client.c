@@ -75,10 +75,11 @@ int main(int argc, char const *argv[])
         perror("connect\t");
         exit(EXIT_FAILURE);
     }
+    /*
     printf("Please input a Name (<20 Char)\n>");
     scanf("%20s", name_buff);
     send(socketFD, name_buff, sizeof(name_buff), 0);
-
+    */
     pthread_t recv_handler_t, send_handler_t;
     if ((pthread_create(&recv_handler_t, NULL, (void *)&recv_handler, NULL) != 0) ||
         (pthread_create(&send_handler_t, NULL, (void *)&send_handler, NULL) != 0))
