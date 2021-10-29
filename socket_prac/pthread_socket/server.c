@@ -116,7 +116,6 @@ void *client_handler(void *client_in)
             break;
         }
         int receive = read(client->socketFD, recv_buff, BUFFER_SIZE);
-        // printf("%d\t", receive);
         if (receive > 0)
         {
             if (strlen(recv_buff) > 0)
@@ -145,6 +144,8 @@ void *client_handler(void *client_in)
 void sig_handler(int a)
 {
     server_flag = 1;
+    close_all_fd();
+    exit(EXIT_FAILURE);
 }
 
 int main(int argc, char const *argv[])
