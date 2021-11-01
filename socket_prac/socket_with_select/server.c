@@ -19,11 +19,10 @@ void sig_handler(int sig_num)
 
 int main(int argc, char **argv)
 {
-    int listenfd, connfd, sockfd, maxfd, maxi, i;
-    int nready, client[FD_SETSIZE];
+    int listenfd, connfd, sockfd, maxfd, cli_count = -1, i, nready;
+    int client[FD_SETSIZE];
     fd_set rset, allset;
     char recv_buff[BUFFER_SIZE];
-    socklen_t clilen;
     struct sockaddr_in servaddr, cliaddr;
     signal(SIGINT, sig_handler);
     if ((listenfd = socket(AF_INET, SOCK_STREAM, 0)) == -1)
@@ -36,20 +35,22 @@ int main(int argc, char **argv)
     servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
     servaddr.sin_port = htons(PORT);
 
+    // bind
     if (bind(listenfd, (struct sockaddr *)&servaddr, sizeof(servaddr)) == -1)
     {
         perror("bind\t");
         exit(EXIT_FAILURE);
     }
 
+    // listen
     if (listen(listenfd, 100) == -1)
     {
         perror("listen\t");
         exit(EXIT_FAILURE);
     }
 
+    // set current maxfd for select
     maxfd = listenfd;
-    maxi = -1;
 
     for (i = 0; i < FD_SETSIZE; i++)
     {
@@ -74,13 +75,20 @@ int main(int argc, char **argv)
             continue;
         }
 
+        // if any new client in
         if (FD_ISSET(listenfd, &rset))
         {
-            clilen = sizeof(cliaddr);
-
+            socklen_t clilen = sizeof(cliaddr);
             if ((connfd = accept(listenfd, (struct sockaddr *)&cliaddr, &clilen)) == -1)
             {
                 perror("accpet\t");
+                continue;
+            }
+            // check the max serving size
+            if (i == FD_SETSIZE)
+            {
+                printf("Reach Max... \n");
+                close(connfd);
                 continue;
             }
             printf("New client %d connected \n", connfd);
@@ -93,24 +101,18 @@ int main(int argc, char **argv)
                 }
             }
 
-            if (i == FD_SETSIZE)
-            {
-                printf("Reach Max... ");
-                close(connfd);
-                continue;
-            }
             FD_SET(connfd, &allset);
             if (connfd > maxfd)
             {
                 maxfd = connfd;
             }
-            if (i > maxi)
+            if (i > cli_count)
             {
-                maxi = i;
+                cli_count = i;
             }
         }
-
-        for (i = 0; i <= maxi; i++)
+        // for any serving client, dealing with the data passing
+        for (i = 0; i <= cli_count; i++)
         {
             if ((sockfd = client[i]) > 0)
             {
@@ -155,6 +157,7 @@ int main(int argc, char **argv)
             }
         }
     }
+    // close all FD
     for (int i = 0; i < FD_SETSIZE; i++)
     {
         if (client[i] > 0)

@@ -27,9 +27,11 @@ void send_and_recv(int connfd)
     memset(recv_buff, 0, BUFFER_SIZE);
     while (!left_flag)
     {
+        //add to select Fdset
         FD_SET(fileno(fp), &rset);
         FD_SET(connfd, &rset);
 
+        // select
         if (select(maxfd, &rset, NULL, NULL, NULL) == -1)
         {
             perror("select\t");
@@ -37,6 +39,7 @@ void send_and_recv(int connfd)
             exit(EXIT_FAILURE);
         }
 
+        // if connfd from server change, means new data in
         if (FD_ISSET(connfd, &rset))
         {
             n = read(connfd, recv_buff, BUFFER_SIZE);
@@ -54,12 +57,11 @@ void send_and_recv(int connfd)
             else
             {
                 recv_buff[strlen(recv_buff)] = '\0';
-                write(STDOUT_FILENO, recv_buff, BUFFER_SIZE);
-                printf("\n");
+                printf("%s\n", recv_buff);
             }
             memset(recv_buff, 0, BUFFER_SIZE);
         }
-
+        // if terminal command in
         if (FD_ISSET(fileno(fp), &rset))
         {
             if (fgets(send_buff, BUFFER_SIZE, fp) == NULL)
@@ -99,6 +101,7 @@ int main(int argc, char **argv)
     servaddr.sin_port = htons(PORT);
     inet_pton(AF_INET, "127.0.0.1", &servaddr.sin_addr);
 
+    //connect to server
     if (connect(connfd, (struct sockaddr *)&servaddr, sizeof(servaddr)) < 0)
     {
         perror("connect\t");
