@@ -1,9 +1,8 @@
-// democode from https://github.com/oatmeal3000/LinuxSys/blob/master/Socket/select-server.c
 #include <stdio.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
-#include <errno.h>
+#include <signal.h>
 #include <netinet/in.h>
 #include <sys/select.h>
 #include <sys/types.h>
@@ -11,159 +10,141 @@
 
 #define BUFFER_SIZE 1024
 #define PORT 12345
-#define FD_SIZE 100
-#define MAX_BACK 100
+int server_left = 0;
 
-/*
-typedef struct client_info
+void sig_handler(int sig_num)
 {
-    int fd;
-    struct client_info *next;
-} cli_info;
-*/
+    server_left = 1;
+}
+
 int main(int argc, char **argv)
 {
-    int left_flag = 0;
     int listenfd, connfd, sockfd, maxfd, maxi, i;
-    int nready, client[FD_SIZE]; //!> 接收select返回值、保存客户端套接字
-    // int lens;
-    ssize_t n;           //!> read字节数
-    fd_set rset, allset; //!> 不要理解成就只能保存一个，其实fd_set有点像封装的数组
-    char buf[BUFFER_SIZE];
+    int nready, client[FD_SETSIZE];
+    fd_set rset, allset;
+    char recv_buff[BUFFER_SIZE];
     socklen_t clilen;
-    struct sockaddr_in servaddr, chiaddr;
-
+    struct sockaddr_in servaddr, cliaddr;
+    signal(SIGINT, sig_handler);
     if ((listenfd = socket(AF_INET, SOCK_STREAM, 0)) == -1)
     {
-        printf("Create socket Error : %d\n", errno);
+        perror("listen\t");
         exit(EXIT_FAILURE);
     }
-
-    //!>
-    //!> 下面是接口信息
-    bzero(&servaddr, sizeof(servaddr));
+    memset(&servaddr, 0, sizeof(struct sockaddr_in));
     servaddr.sin_family = AF_INET;
     servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
     servaddr.sin_port = htons(PORT);
 
-    //!>
-    //!> 绑定
     if (bind(listenfd, (struct sockaddr *)&servaddr, sizeof(servaddr)) == -1)
     {
-        printf("Bind Error : %d\n", errno);
+        perror("bind\t");
         exit(EXIT_FAILURE);
     }
 
-    //!>
-    //!> 监听
-    if (listen(listenfd, MAX_BACK) == -1)
+    if (listen(listenfd, 100) == -1)
     {
-        printf("Listen Error : %d\n", errno);
+        perror("listen\t");
         exit(EXIT_FAILURE);
     }
 
-    //!> 当前最大的感兴趣的套接字fd
-    maxfd = listenfd; //!> 当前可通知的最大的fd
-    maxi = -1;        //!> 仅仅是为了client数组的好处理
+    maxfd = listenfd;
+    maxi = -1;
 
-    for (i = 0; i < FD_SIZE; i++) //!> 首先置为全-1
+    for (i = 0; i < FD_SETSIZE; i++)
     {
-        client[i] = -1; //!> 首先client的等待队列中是没有的，所以全部置为-1
+        client[i] = -1;
     }
 
-    FD_ZERO(&allset); //!> 先将其置为0
+    FD_ZERO(&allset);
     FD_SET(listenfd, &allset);
-    //!> 说明当前我对此套接字有兴趣，下次select的时候通知我！
 
-    while (!left_flag)
+    while (!server_left)
     {
-        rset = allset; //!> 由于allset可能每次一个循环之后都有变化，所以每次都赋值一次
+        rset = allset;
         if ((nready = select(maxfd + 1, &rset, NULL, NULL, NULL)) == -1)
-        { //!> if 存在关注
-            printf("Select Erorr : %d\n", errno);
-            left_flag = 1;
-            exit(EXIT_FAILURE);
+        {
+            perror("select\t");
+            server_left = 1;
+            break;
         }
 
-        if (nready <= 0) //!> if 所有的感兴趣的没有就接着回去select
+        if (nready <= 0)
         {
             continue;
         }
 
-        if (FD_ISSET(listenfd, &rset)) //!> if 是监听接口上的“来电”
-        {                              //!>
-            //!> printf("server listen ...\n");
-            clilen = sizeof(chiaddr);
+        if (FD_ISSET(listenfd, &rset))
+        {
+            clilen = sizeof(cliaddr);
 
-            printf("Start doing... \n");
-
-            if ((connfd = accept(listenfd, (struct sockaddr *)&chiaddr, &clilen)) == -1)
-            { //!> accept 返回的还是套接字
-                printf("Accept Error : %d\n", errno);
+            if ((connfd = accept(listenfd, (struct sockaddr *)&cliaddr, &clilen)) == -1)
+            {
+                perror("accpet\t");
                 continue;
             }
-
-            for (i = 0; i < FD_SIZE; i++) //!> 注意此处必须是循环，刚开始我认
-                                          //!> 为可以直接设置一个end_i来直接处
-                                          //!> 理,实质是不可以的！因为每个套接
-            {                             //!> 字的退出时间是不一样的，后面的
-                if (client[i] < 0)        //!> 可能先退出，那么就乱了，所以只
-                {                         //!> 有这样了！
-                    client[i] = connfd;   //!> 将client的请求连接保存
+            printf("New client %d connected \n", connfd);
+            for (i = 0; i < FD_SETSIZE; i++)
+            {
+                if (client[i] < 0)
+                {
+                    client[i] = connfd;
                     break;
                 }
             }
 
-            if (i == FD_SIZE) //!> The last one
+            if (i == FD_SETSIZE)
             {
-                printf("To many ... ");
-                close(connfd); //!> if 满了那么就不连接你了，关闭吧
-                continue;      //!> 返回
+                printf("Reach Max... ");
+                close(connfd);
+                continue;
             }
-            //!> listen的作用就是向数组中加入套接字！
-            FD_SET(connfd, &allset); //!> 说明现在对于这个连接也是感兴趣的！
-                                     //!> 所以加入allset的阵容
-            if (connfd > maxfd)      //!> 这个还是为了解决乱七八糟的数组模型
-                                     //!> 的处理
+            FD_SET(connfd, &allset);
+            if (connfd > maxfd)
             {
                 maxfd = connfd;
             }
-
-            if (i > maxi) //!> 同上
+            if (i > maxi)
             {
                 maxi = i;
             }
         }
 
-        //!> 下面就是处理数据函数
-        for (i = 0; i <= maxi; i++) //!> 对所有的连接请求的处理
+        for (i = 0; i <= maxi; i++)
         {
-            if ((sockfd = client[i]) > 0)    //!> 还是为了不规整的数组
-            {                                //!> 也就说client数组不是连续的全正数或者-1，可能是锯齿状的
-                if (FD_ISSET(sockfd, &rset)) //!> if 当前这个数据套接字有要读的
+            if ((sockfd = client[i]) > 0)
+            {
+                if (FD_ISSET(sockfd, &rset))
                 {
-                    memset(buf, 0, sizeof(buf)); //!> 此步重要，不要有时候出错
-
-                    n = read(sockfd, buf, BUFFER_SIZE);
+                    memset(recv_buff, 0, BUFFER_SIZE);
+                    ssize_t n = read(sockfd, recv_buff, BUFFER_SIZE);
                     if (n < 0)
                     {
-                        printf("Error!\n");
-                        close(sockfd); //!> 说明在这个请求端口上出错了！
+                        perror("read\t");
+                        close(sockfd);
                         FD_CLR(sockfd, &allset);
                         client[i] = -1;
                         continue;
                     }
                     if (n == 0)
                     {
-                        // printf("no data\n");
-                        close(sockfd); //!> 说明在这个请求端口上读完了！
+                        printf("SockFD %d left!\n", sockfd);
+                        close(sockfd);
                         FD_CLR(sockfd, &allset);
                         client[i] = -1;
                         continue;
                     }
 
-                    printf("\t%s < %d\n", buf, sockfd);
-                    if (strcmp(buf, "exit") == 0) //!> 客户端输入“q”退出标志
+                    printf("%s < %d\n", recv_buff, sockfd);
+                    for (int j = 0; j < FD_SETSIZE; j++)
+                    {
+                        if (client[j] > 0 && i != j)
+                        {
+                            write(client[j], recv_buff, strlen(recv_buff));
+                        }
+                    }
+
+                    if (strcmp(recv_buff, "exit") == 0)
                     {
                         close(sockfd);
                         FD_CLR(sockfd, &allset);
@@ -174,6 +155,13 @@ int main(int argc, char **argv)
             }
         }
     }
-
+    for (int i = 0; i < FD_SETSIZE; i++)
+    {
+        if (client[i] > 0)
+        {
+            close(client[i]);
+        }
+    }
+    close(listenfd);
     return 0;
 }

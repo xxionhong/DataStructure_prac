@@ -1,104 +1,112 @@
 #include <stdio.h>
-#include <stdlib.h>
-#include <errno.h>
-#include <string.h>
-#include <netdb.h>
 #include <unistd.h>
-#include <fcntl.h>
-#include <sys/types.h>
-#include <sys/stat.h>
+#include <stdlib.h>
+#include <string.h>
+#include <signal.h>
 #include <netinet/in.h>
+#include <sys/types.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
+#include <sys/select.h>
 
 #define BUFFER_SIZE 1024
 #define PORT 12345
-#define STDIN 0
+int left_flag = 0;
 
-void set_nonblock(int fd)
+void send_and_recv(int connfd)
 {
-    int flags;
-    flags = fcntl(fd, F_GETFL, 0);
-    if (flags < 0)
-    {
-        perror("fcntl\t");
-        exit(EXIT_FAILURE);
-    }
-    if (fcntl(fd, F_SETFL, flags | O_NONBLOCK) < 0)
-    {
-        perror("fcntl\t");
-        exit(EXIT_FAILURE);
-    }
-}
+    FILE *fp = stdin;
+    char send_buff[BUFFER_SIZE];
+    char recv_buff[BUFFER_SIZE];
+    fd_set rset;
+    FD_ZERO(&rset);
+    int maxfd = (fileno(fp) > connfd ? fileno(fp) : connfd + 1);
+    int n;
 
-int main(int argc, char const *argv[])
-{
-    char recv_buff[BUFFER_SIZE], send_buff[BUFFER_SIZE];
-    struct sockaddr_in conn_info;
-    int sockfd, left_flag = 0;
-    memset(recv_buff, 0, BUFFER_SIZE);
     memset(send_buff, 0, BUFFER_SIZE);
-    if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1)
-    {
-        perror("socket\t");
-        close(sockfd);
-        exit(EXIT_FAILURE);
-    }
-    // set_nonblock(sockfd);
-    conn_info.sin_family = AF_INET;
-    conn_info.sin_port = htons(PORT);
-    conn_info.sin_addr.s_addr = inet_addr("127.0.0.1");
-    memset(&(conn_info.sin_zero), 0, sizeof(conn_info.sin_zero));
-
-    if (connect(sockfd, (struct sockaddr *)&conn_info, sizeof(struct sockaddr)) == -1)
-    {
-        perror("connect\t");
-        close(sockfd);
-        exit(EXIT_FAILURE);
-    }
-    set_nonblock(sockfd);
-    fd_set readfds;
-    FD_ZERO(&readfds);
-    FD_SET(STDIN_FILENO, &readfds);
-    FD_SET(sockfd, &readfds);
-    struct timeval timeout = {2, 0};
-    if (select(sockfd + 1, &readfds, NULL, NULL, &timeout) == -1)
-    {
-        perror("select\t");
-        close(sockfd);
-        exit(EXIT_FAILURE);
-    }
-
+    memset(recv_buff, 0, BUFFER_SIZE);
     while (!left_flag)
     {
-        scanf("%s", send_buff);
-        if (FD_ISSET(sockfd, &readfds))
+        FD_SET(fileno(fp), &rset);
+        FD_SET(connfd, &rset);
+
+        if (select(maxfd, &rset, NULL, NULL, NULL) == -1)
         {
-            int temp = read(sockfd, recv_buff, strlen(recv_buff));
-            if (temp > 0)
-            {
-                printf("%s\n>", recv_buff);
-            }
-            else if (temp == 0)
+            perror("select\t");
+            left_flag = 1;
+            exit(EXIT_FAILURE);
+        }
+
+        if (FD_ISSET(connfd, &rset))
+        {
+            n = read(connfd, recv_buff, BUFFER_SIZE);
+            if (n == 0)
             {
                 left_flag = 1;
                 break;
+            }
+            else if (n == -1)
+            {
+                perror("read\t");
+                left_flag = 1;
+                break;
+            }
+            else
+            {
+                recv_buff[strlen(recv_buff)] = '\0';
+                write(STDOUT_FILENO, recv_buff, BUFFER_SIZE);
+                printf("\n");
             }
             memset(recv_buff, 0, BUFFER_SIZE);
         }
-        else
+
+        if (FD_ISSET(fileno(fp), &rset))
         {
-            FD_CLR(sockfd, &readfds);
-            write(sockfd, send_buff, strlen(send_buff));
-            if (!strcmp(send_buff, "exit"))
+            if (fgets(send_buff, BUFFER_SIZE, fp) == NULL)
             {
+                printf("End...\n");
                 left_flag = 1;
                 break;
+            }
+            else
+            {
+                send_buff[strlen(send_buff) - 1] = '\0';
+                write(connfd, send_buff, strlen(send_buff));
+                if (strcmp(send_buff, "exit") == 0)
+                {
+                    printf("Bye..\n");
+                    left_flag = 1;
+                    return;
+                }
             }
             memset(send_buff, 0, BUFFER_SIZE);
         }
     }
-    close(sockfd);
+}
 
+int main(int argc, char **argv)
+{
+    int connfd;
+    struct sockaddr_in servaddr;
+
+    if ((connfd = socket(AF_INET, SOCK_STREAM, 0)) == -1)
+    {
+        perror("socket\t");
+        exit(EXIT_FAILURE);
+    }
+    memset(&servaddr, 0, sizeof(struct sockaddr_in));
+    servaddr.sin_family = AF_INET;
+    servaddr.sin_port = htons(PORT);
+    inet_pton(AF_INET, "127.0.0.1", &servaddr.sin_addr);
+
+    if (connect(connfd, (struct sockaddr *)&servaddr, sizeof(servaddr)) < 0)
+    {
+        perror("connect\t");
+        exit(EXIT_FAILURE);
+    }
+    printf("connect successfully!\n");
+    send_and_recv(connfd);
+    close(connfd);
+    printf("Exit\n");
     return 0;
 }
