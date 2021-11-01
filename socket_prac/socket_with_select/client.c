@@ -27,7 +27,7 @@ void send_and_recv(int connfd)
     memset(recv_buff, 0, BUFFER_SIZE);
     while (!left_flag)
     {
-        //add to select Fdset
+        // add to select Fdset
         FD_SET(fileno(fp), &rset);
         FD_SET(connfd, &rset);
 
@@ -66,17 +66,15 @@ void send_and_recv(int connfd)
         {
             if (fgets(send_buff, BUFFER_SIZE, fp) == NULL)
             {
-                printf("End...\n");
                 left_flag = 1;
                 break;
             }
             else
             {
-                send_buff[strlen(send_buff) - 1] = '\0';
+                send_buff[strlen(send_buff)] = '\0';
                 write(connfd, send_buff, strlen(send_buff));
                 if (strcmp(send_buff, "exit") == 0)
                 {
-                    printf("Bye..\n");
                     left_flag = 1;
                     return;
                 }
@@ -101,7 +99,7 @@ int main(int argc, char **argv)
     servaddr.sin_port = htons(PORT);
     inet_pton(AF_INET, "127.0.0.1", &servaddr.sin_addr);
 
-    //connect to server
+    // connect to server
     if (connect(connfd, (struct sockaddr *)&servaddr, sizeof(servaddr)) < 0)
     {
         perror("connect\t");
@@ -110,6 +108,5 @@ int main(int argc, char **argv)
     printf("connect successfully!\n");
     send_and_recv(connfd);
     close(connfd);
-    printf("Exit\n");
     return 0;
 }

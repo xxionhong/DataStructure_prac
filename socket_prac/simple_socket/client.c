@@ -19,11 +19,12 @@ int *left_flag;
 void sig_handler(int num)
 {
     *left_flag = 1;
+    exit(EXIT_FAILURE);
 }
 
 int main(int argc, char *argv[])
 {
-    int sockfd, n;
+    int sockfd, n, status;
     FILE *fp = stdin;
     char send_buff[BUFFER_SIZE], recv_buff[BUFFER_SIZE];
     struct sockaddr_in address;
@@ -104,7 +105,7 @@ int main(int argc, char *argv[])
             memset(recv_buff, 0, BUFFER_SIZE);
         }
     }
-    wait(NULL);
+    wait(&status);
     close(sockfd);
     return 0;
 }

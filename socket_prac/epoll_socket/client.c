@@ -66,7 +66,6 @@ void send_and_recv(int connfd)
         {
             if (fgets(send_buff, BUFFER_SIZE, fp) == NULL)
             {
-                printf("End...\n");
                 left_flag = 1;
                 break;
             }
@@ -76,7 +75,6 @@ void send_and_recv(int connfd)
                 write(connfd, send_buff, strlen(send_buff));
                 if (strcmp(send_buff, "exit") == 0)
                 {
-                    printf("Bye..\n");
                     left_flag = 1;
                     return;
                 }
@@ -110,6 +108,5 @@ int main(int argc, char **argv)
     printf("connect successfully!\n");
     send_and_recv(connfd);
     close(connfd);
-    printf("Exit\n");
     return 0;
 }

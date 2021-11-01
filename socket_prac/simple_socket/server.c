@@ -13,7 +13,7 @@ int flag = 0;
 void sig_handler(int sig_numb)
 {
     flag = 1;
-    exit(1);
+    exit(EXIT_FAILURE);
 }
 
 int main()
@@ -81,7 +81,7 @@ int main()
                 {
                     memset(recv_buff, 0, sizeof(recv_buff));
                     int ret = read(new_fd, recv_buff, sizeof(recv_buff));
-                    printf("Sockfd %d: %s\n", new_fd, recv_buff);
+                    printf("%s < %d\n", recv_buff, new_fd);
                     if (ret == 0 || !strcmp(recv_buff, "exit"))
                     {
                         write(new_fd, "\0", 1);
