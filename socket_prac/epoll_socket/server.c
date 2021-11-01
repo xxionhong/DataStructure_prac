@@ -11,12 +11,14 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <fcntl.h>
+#include "singlylinkedlist.c"
 
 #define CONNECT_SIZE 256
 
 #define PORT 12345
 #define BUFFER_SIZE 2048
 
+// using fcntl to set FD nonblocking
 void setNonblocking(int sockfd)
 {
     int opts;
@@ -41,7 +43,7 @@ int main(int argc, char **argv)
     ssize_t n, ret;
     char recv_buff[BUFFER_SIZE];
     struct sockaddr_in servaddr, cliaddr;
-
+    Node *head = NULL;
     struct epoll_event ev, events[20];
 
     if ((listenfd = socket(AF_INET, SOCK_STREAM, 0)) == -1)
@@ -86,6 +88,7 @@ int main(int argc, char **argv)
                     close(listenfd);
                     exit(EXIT_FAILURE);
                 }
+                appendNode(&head, connfd);
                 printf("accpet a new client: %d\n", connfd);
                 setNonblocking(connfd);
                 ev.data.fd = connfd;
@@ -102,24 +105,38 @@ int main(int argc, char **argv)
                 {
                     close(sockfd);
                     events[i].data.fd = -1;
-                } 
+                }
                 else
                 {
                     recv_buff[n] = '\0';
                     printf("%s < %d\n", recv_buff, sockfd);
+                    if (!strcmp(recv_buff, "exit"))
+                    {
+                        deleteNode(&head, sockfd);
+                        close(sockfd);
+                        continue;
+                    }
                     ev.data.fd = sockfd;
                     ev.events = EPOLLOUT | EPOLLET;
                     epoll_ctl(epfd, EPOLL_CTL_MOD, sockfd, &ev);
-                } 
-            }     
+                }
+            }
             else if (events[i].events & EPOLLOUT)
             {
                 if ((sockfd = events[i].data.fd) < 0)
                     continue;
-                if ((ret = write(sockfd, recv_buff, n)) != n)
+                Node *temp = head;
+                while (temp != NULL)
                 {
-                    printf("error writing to the sockfd!\n");
-                    break;
+                    if (temp->data != sockfd)
+                    {
+                        if ((ret = write(temp->data, recv_buff, n)) != n)
+                        {
+                            perror("write\t");
+                            break;
+                        }
+                    }
+                    temp = temp->next;
                 }
                 ev.data.fd = sockfd;
                 ev.events = EPOLLIN | EPOLLET;
