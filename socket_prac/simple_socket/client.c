@@ -4,57 +4,107 @@
 #include <string.h>
 #include <netdb.h>
 #include <unistd.h>
+#include <signal.h>
+#include <sys/mman.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
 
-int main(int argc, char *argv[])
+#define BUFFER_SIZE 1024
+#define PORT 12345
+int *left_flag;
 
+void sig_handler(int num)
 {
+    *left_flag = 1;
+}
 
-    int sockfd;
-    char buf[2000];
-    char message[] = {"Message from client!\n"};
+int main(int argc, char *argv[])
+{
+    int sockfd, n;
+    FILE *fp = stdin;
+    char send_buff[BUFFER_SIZE], recv_buff[BUFFER_SIZE];
     struct sockaddr_in address;
-
-    // TCP socket
-
+    memset(send_buff, 0, BUFFER_SIZE);
+    memset(recv_buff, 0, BUFFER_SIZE);
+    signal(SIGINT, sig_handler);
+    left_flag = mmap(NULL, sizeof(*left_flag), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+    (*left_flag) = 0;
     if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1)
     {
-        perror("socket");
+        perror("socket\t");
         exit(1);
     }
-
-    // Initial, connect to port 2323
 
     address.sin_family = AF_INET;
-    address.sin_port = htons(12345);
+    address.sin_port = htons(PORT);
     address.sin_addr.s_addr = inet_addr("127.0.0.1");
     bzero(&(address.sin_zero), 8);
-
     // Connect to server
-
     if (connect(sockfd, (struct sockaddr *)&address, sizeof(struct sockaddr)) == -1)
     {
-        perror("connect");
+        perror("connect\t");
         exit(1);
     }
 
-    printf("Enter a message: \n>");
-    while (1)
+    pid_t pid;
+    pid = fork();
+    if (pid == -1)
     {
-
-        scanf("%s", buf);
-        send(sockfd, buf, strlen(buf), 0);
-        if (!strcmp(buf, "exit"))
+        perror("fork\t");
+        close(sockfd);
+        exit(EXIT_FAILURE);
+    }
+    if (pid == 0) // child
+    {
+        while (!(*left_flag))
         {
-            close(sockfd);
-            exit(EXIT_SUCCESS);
+            if (fgets(send_buff, BUFFER_SIZE, fp) == NULL)
+            {
+                *left_flag = 1;
+                break;
+            }
+            else
+            {
+                send_buff[strlen(send_buff) - 1] = '\0';
+                write(sockfd, send_buff, strlen(send_buff));
+                if (strcmp(send_buff, "exit") == 0)
+                {
+                    *left_flag = 1;
+                    break;
+                }
+            }
+            memset(send_buff, 0, BUFFER_SIZE);
         }
-        printf(">");
     }
 
+    if (pid > 0) // parent
+    {
+        while (!(*left_flag))
+        {
+            n = read(sockfd, recv_buff, BUFFER_SIZE);
+            if (n == 0)
+            {
+                *left_flag = 1;
+                break;
+            }
+            else if (n == -1)
+            {
+                perror("read\t");
+                *left_flag = 1;
+                break;
+            }
+            else
+            {
+                recv_buff[strlen(recv_buff)] = '\0';
+                printf("%s\n", recv_buff);
+            }
+            memset(recv_buff, 0, BUFFER_SIZE);
+        }
+    }
+    wait(NULL);
+    close(sockfd);
     return 0;
 }

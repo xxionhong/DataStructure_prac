@@ -81,9 +81,10 @@ int main()
                 {
                     memset(recv_buff, 0, sizeof(recv_buff));
                     int ret = read(new_fd, recv_buff, sizeof(recv_buff));
-                    printf("PID %d: %s\n", getpid(), recv_buff);
+                    printf("Sockfd %d: %s\n", new_fd, recv_buff);
                     if (ret == 0 || !strcmp(recv_buff, "exit"))
                     {
+                        write(new_fd, "\0", 1);
                         printf("client close: %d\n", new_fd);
                         break;
                     }
