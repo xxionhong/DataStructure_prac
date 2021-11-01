@@ -85,12 +85,7 @@ int main(int argc, char **argv)
                 continue;
             }
             // check the max serving size
-            if (i == FD_SETSIZE)
-            {
-                printf("Reach Max... \n");
-                close(connfd);
-                continue;
-            }
+
             printf("New client %d connected \n", connfd);
             for (i = 0; i < FD_SETSIZE; i++)
             {
@@ -100,7 +95,12 @@ int main(int argc, char **argv)
                     break;
                 }
             }
-
+            if (i == FD_SETSIZE)
+            {
+                printf("Reach Max... \n");
+                close(connfd);
+                continue;
+            }
             FD_SET(connfd, &allset);
             if (connfd > maxfd)
             {
