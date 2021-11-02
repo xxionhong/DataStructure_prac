@@ -12,6 +12,12 @@
 #define BUFFER_SIZE 1024
 #define PORT 12345
 int left_flag = 0;
+int connfd;
+void sig_handler(int num)
+{
+    close(connfd);
+    exit(EXIT_FAILURE);
+}
 
 void send_and_recv(int connfd)
 {
@@ -71,7 +77,7 @@ void send_and_recv(int connfd)
             }
             else
             {
-                send_buff[strlen(send_buff)] = '\0';
+                send_buff[strlen(send_buff) - 1] = '\0';
                 write(connfd, send_buff, strlen(send_buff));
                 if (strcmp(send_buff, "exit") == 0)
                 {
@@ -86,9 +92,8 @@ void send_and_recv(int connfd)
 
 int main(int argc, char **argv)
 {
-    int connfd;
     struct sockaddr_in servaddr;
-
+    signal(SIGINT, sig_handler);
     if ((connfd = socket(AF_INET, SOCK_STREAM, 0)) == -1)
     {
         perror("socket\t");

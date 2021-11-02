@@ -11,16 +11,25 @@
 #define BUFFER_SIZE 1024
 #define PORT 12345
 int server_left = 0;
+int client[FD_SETSIZE], listenfd;
 
 void sig_handler(int sig_num)
 {
-    server_left = 1;
+    for (int i = 0; i < FD_SETSIZE; i++)
+    {
+        if (client[i])
+        {
+            close(client[i]);
+        }
+    }
+    close(listenfd);
+    exit(EXIT_FAILURE);
 }
 
 int main(int argc, char **argv)
 {
-    int listenfd, connfd, sockfd, maxfd, cli_count = -1, i, nready;
-    int client[FD_SETSIZE];
+    int connfd, sockfd, maxfd, cli_count = -1, i, nready;
+
     fd_set rset, allset;
     char recv_buff[BUFFER_SIZE];
     struct sockaddr_in servaddr, cliaddr;
@@ -39,6 +48,7 @@ int main(int argc, char **argv)
     if (bind(listenfd, (struct sockaddr *)&servaddr, sizeof(servaddr)) == -1)
     {
         perror("bind\t");
+        close(listenfd);
         exit(EXIT_FAILURE);
     }
 
@@ -46,6 +56,7 @@ int main(int argc, char **argv)
     if (listen(listenfd, 100) == -1)
     {
         perror("listen\t");
+        close(listenfd);
         exit(EXIT_FAILURE);
     }
 
@@ -160,7 +171,7 @@ int main(int argc, char **argv)
     // close all FD
     for (int i = 0; i < FD_SETSIZE; i++)
     {
-        if (client[i] > 0)
+        if (client[i])
         {
             close(client[i]);
         }
