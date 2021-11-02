@@ -3,7 +3,6 @@
 #include <string.h>
 #include <errno.h>
 #include <unistd.h>
-#include <time.h>
 #include <sys/socket.h>
 #include <sys/epoll.h>
 #include <sys/types.h>
@@ -11,12 +10,13 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <fcntl.h>
+#include <signal.h>
 #include "singlylinkedlist.c"
 
 #define CONNECT_SIZE 256
-
 #define PORT 12345
 #define BUFFER_SIZE 2048
+int listenfd;
 
 // using fcntl to set FD nonblocking
 void setNonblocking(int sockfd)
@@ -36,16 +36,22 @@ void setNonblocking(int sockfd)
         return;
     }
 }
+void sig_handler(int num)
+{
+    close(listenfd);
+    exit(EXIT_FAILURE);
+}
 
 int main(int argc, char **argv)
 {
-    int i, listenfd, connfd, sockfd, nfds;
+    int i, connfd, sockfd, nfds;
     ssize_t n, ret;
     char recv_buff[BUFFER_SIZE];
     struct sockaddr_in servaddr, cliaddr;
-    Node *head = NULL;
     struct epoll_event ev, events[20];
+    Node *head = NULL;
 
+    signal(SIGINT, sig_handler);
     if ((listenfd = socket(AF_INET, SOCK_STREAM, 0)) == -1)
     {
         perror("listen\t");
@@ -126,7 +132,7 @@ int main(int argc, char **argv)
                 if ((sockfd = events[i].data.fd) < 0)
                     continue;
                 Node *temp = head;
-                while (temp != NULL)
+                while (temp->next != NULL)
                 {
                     if (temp->data != sockfd)
                     {
@@ -145,6 +151,7 @@ int main(int argc, char **argv)
         }
     }
     free(events);
+    close(listenfd);
     close(epfd);
     exit(0);
 }

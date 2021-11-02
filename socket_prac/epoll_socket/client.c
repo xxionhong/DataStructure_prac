@@ -11,7 +11,7 @@
 
 #define BUFFER_SIZE 1024
 #define PORT 12345
-int left_flag = 0;
+int left_flag = 0, connfd;
 
 void send_and_recv(int connfd)
 {
@@ -84,9 +84,14 @@ void send_and_recv(int connfd)
     }
 }
 
+void sig_handler(int num)
+{
+    close(connfd);
+    exit(EXIT_FAILURE);
+}
+
 int main(int argc, char **argv)
 {
-    int connfd;
     struct sockaddr_in servaddr;
 
     if ((connfd = socket(AF_INET, SOCK_STREAM, 0)) == -1)
