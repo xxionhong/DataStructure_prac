@@ -5,6 +5,7 @@
 #include <netdb.h>
 #include <unistd.h>
 #include <pthread.h>
+#include <signal.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <netinet/in.h>
@@ -38,21 +39,39 @@ void *recv_handler()
 }
 void *send_handler()
 {
+    FILE *fp = stdin;
     char send_buff[BUFFER_SIZE + 21];
+    printf("Please input data (exit)\n>");
     while (!flag)
     {
-        printf("Please input data (exit)\n>");
-        scanf("%s", send_buff);
-        if (!strcmp(send_buff, "exit"))
+
+        if (fgets(send_buff, BUFFER_SIZE, fp) == NULL)
         {
             flag = 1;
+            continue;
         }
-        send(socketFD, send_buff, BUFFER_SIZE, 0);
-
+        else
+        {
+            send_buff[strlen(send_buff) - 1] = '\0';
+            write(socketFD, send_buff, BUFFER_SIZE);
+            if (!strcmp(send_buff, "exit"))
+            {
+                flag = 1;
+                break;
+            }
+        }
+        printf(">");
         memset(send_buff, 0, BUFFER_SIZE + 21);
     }
     pthread_exit(NULL);
 }
+
+void sig_handler(int num)
+{
+    close(socketFD);
+    exit(EXIT_FAILURE);
+}
+
 int main(int argc, char const *argv[])
 {
 
@@ -62,10 +81,10 @@ int main(int argc, char const *argv[])
         perror("socket\t");
         exit(EXIT_FAILURE);
     }
+    memset(&conn_info, 0, sizeof(struct sockaddr_in));
     conn_info.sin_family = AF_INET;
     conn_info.sin_port = htons(PORT);
     conn_info.sin_addr.s_addr = inet_addr("127.0.0.1");
-    memset(&(conn_info.sin_zero), 0, sizeof(conn_info.sin_zero));
 
     if (connect(socketFD, (struct sockaddr *)&conn_info, sizeof(struct sockaddr)) == -1)
     {

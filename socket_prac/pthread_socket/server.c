@@ -14,13 +14,19 @@
 #define BUFFER_SIZE 1024
 #define PORT 12345
 
-int cli_count = 0, server_flag = 0;
+int cli_count = 0, server_flag = 0, server_socketFD;
 pthread_mutex_t list_mutex = PTHREAD_MUTEX_INITIALIZER;
 Node *head = NULL;
 
 void sig_handler(int a)
 {
-    server_flag = 1;
+    Node *temp = head;
+    while (temp != NULL)
+    {
+        close(temp->data);
+        temp = temp->next;
+    }
+    close(server_socketFD);
     exit(EXIT_FAILURE);
 }
 
@@ -47,13 +53,14 @@ void *client_handler(void *fd)
         }
         printf("%s < %d\n", recv_buff, sockfd);
         pthread_mutex_lock(&list_mutex);
-        while (head != NULL)
+        Node *temp = head;
+        while (temp != NULL)
         {
-            if (head->data != sockfd)
+            if (temp->data != sockfd)
             {
-                write(head->data, recv_buff, strlen(recv_buff));
+                write(temp->data, recv_buff, strlen(recv_buff));
             }
-            head = head->next;
+            temp = temp->next;
         }
         pthread_mutex_unlock(&list_mutex);
         if (!strcmp(recv_buff, "exit"))
@@ -72,7 +79,7 @@ void *client_handler(void *fd)
 
 int main(int argc, char const *argv[])
 {
-    int server_socketFD, connect_FD;
+    int connect_FD;
     struct sockaddr_in server_addr, cli_addr;
     pthread_t client_p;
     signal(SIGINT, sig_handler);
