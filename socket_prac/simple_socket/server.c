@@ -7,18 +7,27 @@
 #include <sys/socket.h>
 #include <sys/wait.h>
 #include <sys/types.h>
+#include "singlylinkedlist.c"
 
-int flag = 0;
+#define PORT 12345
+int flag = 0, sockfd;
+Node *head = NULL;
 
 void sig_handler(int sig_numb)
 {
-    flag = 1;
+    Node *temp = head;
+    while (temp != NULL)
+    {
+        close(temp->data);
+        temp = temp->next;
+    }
+    close(sockfd);
     exit(EXIT_FAILURE);
 }
 
 int main()
 {
-    int sockfd, new_fd;
+    int new_fd;
     struct sockaddr_in my_addr, client_addr;
     socklen_t client_addr_len = sizeof(client_addr);
     fd_set readfds;
@@ -29,21 +38,21 @@ int main()
     if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1)
     {
         perror("socket\t");
-        exit(1);
+        exit(EXIT_FAILURE);
     }
 
     // Initail, bind port
+    memset(&my_addr, 0, sizeof(struct sockaddr_in));
     my_addr.sin_family = AF_INET;
-    my_addr.sin_port = htons(12345);
+    my_addr.sin_port = htons(PORT);
     my_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    bzero(&(my_addr.sin_zero), 8);
 
     // binding
     if (bind(sockfd, (struct sockaddr *)&my_addr, sizeof(struct sockaddr)) == -1)
     {
         perror("bind\t");
         close(sockfd);
-        exit(1);
+        exit(EXIT_FAILURE);
     }
 
     // Start listening
@@ -51,7 +60,7 @@ int main()
     {
         perror("listen\t");
         close(sockfd);
-        exit(1);
+        exit(EXIT_FAILURE);
     }
     pid_t pid;
     while (!flag)
@@ -61,15 +70,17 @@ int main()
             perror("accept\t");
             close(new_fd);
             close(sockfd);
-            exit(1);
+            exit(EXIT_FAILURE);
         }
+        appendNode(&head, new_fd);
         pid = fork();
         if (pid == -1)
         {
             perror("fork\t");
             close(new_fd);
             close(sockfd);
-            exit(1);
+            flag = 1;
+            continue;
         }
         else if (pid == 0) // child
         {
@@ -82,10 +93,20 @@ int main()
                     memset(recv_buff, 0, sizeof(recv_buff));
                     int ret = read(new_fd, recv_buff, sizeof(recv_buff));
                     printf("%s < %d\n", recv_buff, new_fd);
+                    Node *temp = head;
+                    while (temp != NULL)
+                    {
+                        if (temp->data != new_fd)
+                        {
+                            write(temp->data, recv_buff, strlen(recv_buff));
+                        }
+                        temp = temp->next;
+                    }
                     if (ret == 0 || !strcmp(recv_buff, "exit"))
                     {
                         write(new_fd, "\0", 1);
                         printf("client close: %d\n", new_fd);
+                        deleteNode(&head, new_fd);
                         break;
                     }
                     else if (ret == -1)
@@ -95,15 +116,10 @@ int main()
                     }
                 }
             }
-            flag = 1;
             close(new_fd);
-        }
-        else
-        {
-            continue;
+            exit(EXIT_SUCCESS);
         }
     }
-    flag = 1;
     close(sockfd);
     return 0;
 }

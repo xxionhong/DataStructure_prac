@@ -7,6 +7,7 @@
 #include <signal.h>
 #include <sys/mman.h>
 #include <sys/types.h>
+#include <sys/wait.h>
 #include <sys/stat.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
@@ -14,17 +15,17 @@
 
 #define BUFFER_SIZE 1024
 #define PORT 12345
-int *left_flag;
+int *left_flag, sockfd;
 
 void sig_handler(int num)
 {
-    *left_flag = 1;
+    close(sockfd);
     exit(EXIT_FAILURE);
 }
 
 int main(int argc, char *argv[])
 {
-    int sockfd, n, status;
+    int n, status;
     FILE *fp = stdin;
     char send_buff[BUFFER_SIZE], recv_buff[BUFFER_SIZE];
     struct sockaddr_in address;
@@ -65,7 +66,7 @@ int main(int argc, char *argv[])
             if (fgets(send_buff, BUFFER_SIZE, fp) == NULL)
             {
                 *left_flag = 1;
-                break;
+                continue;
             }
             else
             {
@@ -79,6 +80,7 @@ int main(int argc, char *argv[])
             }
             memset(send_buff, 0, BUFFER_SIZE);
         }
+        exit(EXIT_SUCCESS);
     }
 
     if (pid > 0) // parent
@@ -104,8 +106,8 @@ int main(int argc, char *argv[])
             }
             memset(recv_buff, 0, BUFFER_SIZE);
         }
+        waitpid(pid, &status, WNOHANG);
     }
-    wait(&status);
     close(sockfd);
     return 0;
 }
