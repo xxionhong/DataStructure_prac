@@ -18,7 +18,7 @@ int cli_count = 0, server_flag = 0, server_socketFD;
 pthread_mutex_t list_mutex = PTHREAD_MUTEX_INITIALIZER;
 Node *head = NULL;
 
-void sig_handler(int a)
+void close_linkedlist()
 {
     Node *temp = head;
     while (temp != NULL)
@@ -26,6 +26,11 @@ void sig_handler(int a)
         close(temp->data);
         temp = temp->next;
     }
+    freeallNodes(head);
+}
+void sig_handler(int a)
+{
+    close_linkedlist();
     close(server_socketFD);
     exit(EXIT_FAILURE);
 }

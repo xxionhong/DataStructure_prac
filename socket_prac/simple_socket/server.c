@@ -13,7 +13,7 @@
 int flag = 0, sockfd;
 Node *head = NULL;
 
-void sig_handler(int sig_numb)
+void close_linkedlist()
 {
     Node *temp = head;
     while (temp != NULL)
@@ -21,6 +21,12 @@ void sig_handler(int sig_numb)
         close(temp->data);
         temp = temp->next;
     }
+    freeallNodes(head);
+}
+
+void sig_handler(int sig_numb)
+{
+    close_linkedlist();
     close(sockfd);
     exit(EXIT_FAILURE);
 }
@@ -120,6 +126,7 @@ int main()
             exit(EXIT_SUCCESS);
         }
     }
+    close_linkedlist();
     close(sockfd);
     return 0;
 }

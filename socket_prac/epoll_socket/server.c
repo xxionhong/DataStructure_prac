@@ -17,6 +17,7 @@
 #define PORT 12345
 #define BUFFER_SIZE 2048
 int listenfd;
+Node *head = NULL;
 
 // using fcntl to set FD nonblocking
 void setNonblocking(int sockfd)
@@ -36,8 +37,20 @@ void setNonblocking(int sockfd)
         return;
     }
 }
+void close_linkedlist()
+{
+    Node *temp = head;
+    while (temp != NULL)
+    {
+        close(temp->data);
+        temp = temp->next;
+    }
+    freeallNodes(head);
+}
+
 void sig_handler(int num)
 {
+    close_linkedlist();
     close(listenfd);
     exit(EXIT_FAILURE);
 }
@@ -45,11 +58,10 @@ void sig_handler(int num)
 int main(int argc, char **argv)
 {
     int i, connfd, sockfd, nfds;
-    ssize_t n, ret;
+    ssize_t n;
     char recv_buff[BUFFER_SIZE];
     struct sockaddr_in servaddr, cliaddr;
-    struct epoll_event ev, events[20];
-    Node *head = NULL;
+    struct epoll_event ev, events[CONNECT_SIZE];
 
     signal(SIGINT, sig_handler);
     if ((listenfd = socket(AF_INET, SOCK_STREAM, 0)) == -1)
@@ -71,11 +83,13 @@ int main(int argc, char **argv)
     if (bind(listenfd, (struct sockaddr *)&servaddr, sizeof(servaddr)) == -1)
     {
         perror("bind\t");
+        close(listenfd);
         exit(EXIT_FAILURE);
     }
-    if (listen(listenfd, 100) == -1)
+    if (listen(listenfd, CONNECT_SIZE) == -1)
     {
         perror("listen\t");
+        close(listenfd);
         exit(EXIT_FAILURE);
     }
     while (1)
@@ -109,49 +123,37 @@ int main(int argc, char **argv)
                 memset(recv_buff, 0, BUFFER_SIZE);
                 if ((n = read(sockfd, recv_buff, BUFFER_SIZE)) <= 0)
                 {
+                    printf("sockfd %d left\n",sockfd);
                     close(sockfd);
                     events[i].data.fd = -1;
+                    deleteNode(&head,sockfd);
                 }
                 else
                 {
                     recv_buff[n] = '\0';
                     printf("%s < %d\n", recv_buff, sockfd);
+                    Node *temp = head;
+                    while (temp != NULL)
+                    {
+                        if (temp->data != sockfd)
+                        {
+                            write(temp->data, recv_buff, n);
+                        }
+                        temp = temp->next;
+                    }
                     if (!strcmp(recv_buff, "exit"))
                     {
                         deleteNode(&head, sockfd);
                         close(sockfd);
                         continue;
                     }
-                    ev.data.fd = sockfd;
-                    ev.events = EPOLLOUT | EPOLLET;
-                    epoll_ctl(epfd, EPOLL_CTL_MOD, sockfd, &ev);
                 }
-            }
-            else if (events[i].events & EPOLLOUT)
-            {
-                if ((sockfd = events[i].data.fd) < 0)
-                    continue;
-                Node *temp = head;
-                while (temp->next != NULL)
-                {
-                    if (temp->data != sockfd)
-                    {
-                        if ((ret = write(temp->data, recv_buff, n)) != n)
-                        {
-                            perror("write\t");
-                            break;
-                        }
-                    }
-                    temp = temp->next;
-                }
-                ev.data.fd = sockfd;
-                ev.events = EPOLLIN | EPOLLET;
-                epoll_ctl(epfd, EPOLL_CTL_MOD, sockfd, &ev);
             }
         }
     }
     free(events);
+    close_linkedlist();
     close(listenfd);
     close(epfd);
-    exit(0);
+    return 0;
 }
