@@ -16,14 +16,14 @@
 #define CONNECT_SIZE 256
 #define PORT 12345
 #define BUFFER_SIZE 2048
-int listenfd;
+int listenfd, flag = 0;
 Node *head = NULL;
 
 // using fcntl to set FD nonblocking
-void setNonblocking(int sockfd)
+void setNonblocking(int fd)
 {
     int opts;
-    opts = fcntl(sockfd, F_GETFL);
+    opts = fcntl(fd, F_GETFL);
     if (opts < 0)
     {
         perror("fcntl(sock,GETFL)");
@@ -31,7 +31,7 @@ void setNonblocking(int sockfd)
     }
 
     opts = opts | O_NONBLOCK;
-    if (fcntl(sockfd, F_SETFL, opts) < 0)
+    if (fcntl(fd, F_SETFL, opts) < 0)
     {
         perror("fcntl(sock,SETFL,opts)");
         return;
@@ -50,9 +50,8 @@ void close_linkedlist()
 
 void sig_handler(int num)
 {
-    close_linkedlist();
-    close(listenfd);
-    exit(EXIT_FAILURE);
+    // pipe to transmit flags!!
+    flag = 1;
 }
 
 int main(int argc, char **argv)
@@ -70,7 +69,6 @@ int main(int argc, char **argv)
         exit(EXIT_FAILURE);
     }
     setNonblocking(listenfd);
-
     int epfd = epoll_create(CONNECT_SIZE);
     ev.data.fd = listenfd;
     ev.events = EPOLLIN | EPOLLET;
@@ -92,11 +90,13 @@ int main(int argc, char **argv)
         close(listenfd);
         exit(EXIT_FAILURE);
     }
-    while (1)
-    {
-        nfds = epoll_wait(epfd, events, CONNECT_SIZE, -1);
+    while (!flag)
+    { // !!
+        nfds = epoll_wait(epfd, events, CONNECT_SIZE, 0);
         if (nfds <= 0)
+        {
             continue;
+        }
         for (i = 0; i < nfds; ++i)
         {
             if (events[i].data.fd == listenfd)
@@ -123,10 +123,11 @@ int main(int argc, char **argv)
                 memset(recv_buff, 0, BUFFER_SIZE);
                 if ((n = read(sockfd, recv_buff, BUFFER_SIZE)) <= 0)
                 {
-                    printf("sockfd %d left\n",sockfd);
+                    printf("sockfd %d left\n", sockfd);
                     close(sockfd);
                     events[i].data.fd = -1;
-                    deleteNode(&head,sockfd);
+                    deleteNode(&head, sockfd);
+                    epoll_ctl(epfd, EPOLL_CTL_DEL, sockfd, &ev);
                 }
                 else
                 {
@@ -144,6 +145,7 @@ int main(int argc, char **argv)
                     if (!strcmp(recv_buff, "exit"))
                     {
                         deleteNode(&head, sockfd);
+                        epoll_ctl(epfd, EPOLL_CTL_DEL, sockfd, &ev);
                         close(sockfd);
                         continue;
                     }
@@ -151,7 +153,6 @@ int main(int argc, char **argv)
             }
         }
     }
-    free(events);
     close_linkedlist();
     close(listenfd);
     close(epfd);
