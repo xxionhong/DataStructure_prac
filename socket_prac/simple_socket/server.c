@@ -7,10 +7,13 @@
 #include <sys/socket.h>
 #include <sys/wait.h>
 #include <sys/types.h>
+#include <sys/select.h>
 #include "singlylinkedlist.c"
 
 #define PORT 12345
 int flag = 0, sockfd;
+
+//!! parent <-> child data passing
 Node *head = NULL;
 
 void close_linkedlist()
@@ -26,9 +29,7 @@ void close_linkedlist()
 
 void sig_handler(int sig_numb)
 {
-    close_linkedlist();
-    close(sockfd);
-    exit(EXIT_FAILURE);
+    flag = 1;
 }
 
 int main()
@@ -36,17 +37,17 @@ int main()
     int new_fd;
     struct sockaddr_in my_addr, client_addr;
     socklen_t client_addr_len = sizeof(client_addr);
-    fd_set readfds;
-    FD_ZERO(&readfds);
-
     signal(SIGINT, sig_handler);
+    fd_set readfds, rfds;
+    FD_ZERO(&readfds);
+    FD_ZERO(&rfds);
     // TCP socket
     if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1)
     {
         perror("socket\t");
         exit(EXIT_FAILURE);
     }
-
+    FD_SET(sockfd, &rfds);
     // Initail, bind port
     memset(&my_addr, 0, sizeof(struct sockaddr_in));
     my_addr.sin_family = AF_INET;
@@ -71,59 +72,66 @@ int main()
     pid_t pid;
     while (!flag)
     {
-        if ((new_fd = accept(sockfd, (struct sockaddr *)&client_addr, &client_addr_len)) == -1)
+        if (select(sockfd + 1, &rfds, NULL, NULL, NULL) <= 0)
         {
-            perror("accept\t");
-            close(new_fd);
-            close(sockfd);
-            exit(EXIT_FAILURE);
-        }
-        appendNode(&head, new_fd);
-        pid = fork();
-        if (pid == -1)
-        {
-            perror("fork\t");
-            close(new_fd);
-            close(sockfd);
-            flag = 1;
             continue;
         }
-        else if (pid == 0) // child
+        if (FD_ISSET(sockfd, &rfds))
         {
-            char recv_buff[1024];
-            while (!flag)
+            if ((new_fd = accept(sockfd, (struct sockaddr *)&client_addr, &client_addr_len)) == -1)
             {
-                FD_SET(new_fd, &readfds);
-                if (select(new_fd + 1, &readfds, NULL, NULL, NULL) == 1)
+                perror("accept\t");
+                close(new_fd);
+                close(sockfd);
+                exit(EXIT_FAILURE);
+            }
+            appendNode(&head, new_fd);
+            pid = fork();
+            if (pid == -1)
+            {
+                perror("fork\t");
+                close(new_fd);
+                close(sockfd);
+                flag = 1;
+                continue;
+            }
+            else if (pid == 0) // child
+            {
+                char recv_buff[1024];
+                while (!flag)
                 {
-                    memset(recv_buff, 0, sizeof(recv_buff));
-                    int ret = read(new_fd, recv_buff, sizeof(recv_buff));
-                    printf("%s < %d\n", recv_buff, new_fd);
-                    Node *temp = head;
-                    while (temp != NULL)
+                    FD_SET(new_fd, &readfds);
+                    if (select(new_fd + 1, &readfds, NULL, NULL, NULL) == 1)
                     {
-                        if (temp->data != new_fd)
+                        memset(recv_buff, 0, sizeof(recv_buff));
+                        int ret = read(new_fd, recv_buff, sizeof(recv_buff));
+                        printf("%s < %d\n", recv_buff, new_fd);
+                        Node *temp = head;
+                        while (temp != NULL)
                         {
-                            write(temp->data, recv_buff, strlen(recv_buff));
+                            if (temp->data != new_fd)
+                            {
+                                write(temp->data, recv_buff, strlen(recv_buff));
+                            }
+                            temp = temp->next;
                         }
-                        temp = temp->next;
-                    }
-                    if (ret == 0 || !strcmp(recv_buff, "exit"))
-                    {
-                        write(new_fd, "\0", 1);
-                        printf("client close: %d\n", new_fd);
-                        deleteNode(&head, new_fd);
-                        break;
-                    }
-                    else if (ret == -1)
-                    {
-                        perror("recv \t");
-                        break;
+                        if (ret == 0 || !strcmp(recv_buff, "exit"))
+                        {
+                            write(new_fd, "\0", 1);
+                            printf("client close: %d\n", new_fd);
+                            deleteNode(&head, new_fd);
+                            break;
+                        }
+                        else if (ret == -1)
+                        {
+                            perror("recv \t");
+                            break;
+                        }
                     }
                 }
+                close(new_fd);
+                return 0;
             }
-            close(new_fd);
-            exit(EXIT_SUCCESS);
         }
     }
     close_linkedlist();
