@@ -52,7 +52,6 @@ void setNonblocking(int fd)
 
 void sig_handler(int a)
 {
-    //!!
     flag = 1;
 }
 
@@ -62,6 +61,7 @@ void *client_handler(void *fd)
     ssize_t n;
     char recv_buff[BUFFER_SIZE];
     memset(recv_buff, 0, BUFFER_SIZE);
+    pthread_detach(pthread_self());
     while (!flag)
     {
         n = read(sockfd, recv_buff, BUFFER_SIZE);
@@ -172,7 +172,6 @@ int main(int argc, char const *argv[])
             }
         }
     }
-    pthread_join(client_p, NULL);
     close_linkedlist();
     close(server_socketFD);
     return 0;
