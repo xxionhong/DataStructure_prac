@@ -16,7 +16,8 @@
 #define CONNECT_SIZE 256
 #define PORT 12345
 #define BUFFER_SIZE 2048
-int listenfd, flag = 0;
+int listenfd, flag = 0, pipe_fd[2];
+pid_t pid;
 Node *head = NULL;
 
 // using fcntl to set FD nonblocking
@@ -51,16 +52,24 @@ void close_linkedlist()
 void sig_handler(int num)
 {
     // pipe to transmit flags!!
-    flag = 1;
+    char *text = "exit";
+    write(pipe_fd[1], text, sizeof(text));
+    // flag = 1;
 }
 
 int main(int argc, char **argv)
 {
     int i, connfd, sockfd, nfds;
     ssize_t n;
-    char recv_buff[BUFFER_SIZE];
+    char recv_buff[BUFFER_SIZE], pipe_buff[5];
     struct sockaddr_in servaddr, cliaddr;
     struct epoll_event ev, events[CONNECT_SIZE];
+
+    if (pipe(pipe_fd)) // o for read, 1 for write
+    {
+        perror("pipe\t");
+        exit(EXIT_FAILURE);
+    }
 
     signal(SIGINT, sig_handler);
     if ((listenfd = socket(AF_INET, SOCK_STREAM, 0)) == -1)
@@ -73,6 +82,8 @@ int main(int argc, char **argv)
     ev.data.fd = listenfd;
     ev.events = EPOLLIN | EPOLLET;
     epoll_ctl(epfd, EPOLL_CTL_ADD, listenfd, &ev);
+    ev.data.fd = pipe_fd[0];
+    epoll_ctl(epfd, EPOLL_CTL_ADD, pipe_fd[0], &ev);
 
     memset(&servaddr, 0, sizeof(struct sockaddr_in));
     servaddr.sin_family = AF_INET;
@@ -99,14 +110,23 @@ int main(int argc, char **argv)
         }
         for (i = 0; i < nfds; ++i)
         {
-            if (events[i].data.fd == listenfd)
+            if (events[i].data.fd == pipe_fd[0])
+            {
+                read(pipe_fd[0], pipe_buff, 5);
+                if (!strcmp(pipe_buff, "exit"))
+                {
+                    flag = 1;
+                    break;
+                }
+            }
+            else if (events[i].data.fd == listenfd)
             {
                 socklen_t clilen = sizeof(cliaddr);
                 if ((connfd = accept(listenfd, (struct sockaddr *)&cliaddr, &clilen)) < 0)
                 {
                     perror("accept\t");
-                    close(listenfd);
-                    exit(EXIT_FAILURE);
+                    close(connfd);
+                    break;
                 }
                 appendNode(&head, connfd);
                 printf("accpet a new client: %d\n", connfd);
@@ -156,5 +176,7 @@ int main(int argc, char **argv)
     close_linkedlist();
     close(listenfd);
     close(epfd);
+    close(pipe_fd[0]);
+    close(pipe_fd[1]);
     return 0;
 }
